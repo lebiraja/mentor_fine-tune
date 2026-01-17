@@ -1,0 +1,90 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.project
+.pydevproject
+.settings/
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# Data files (large, should not be in git)
+data/processed/*.jsonl
+data/final/*.jsonl
+data/stats/
+
+# Models (large, should not be in git)
+models/claritymentor-lora/
+models/base/
+*.bin
+*.safetensors
+*.pt
+*.pth
+*.ckpt
+
+# Logs
+logs/
+*.log
+wandb/
+
+# HuggingFace cache
+.cache/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Zip files (raw datasets - too large)
+*.zip
+
+# Keep the directory structure
+!data/processed/.gitkeep
+!data/final/.gitkeep
+!models/.gitkeep
+!logs/.gitkeep
+
+# Reddit dataset (Git LFS managed separately)
+reddit_dataset_170/data/
+
+# Downloaded datasets (large)
+empatheticdialogues/
+empathetic_dialogues_llm/
+hf_datasets/
+kaggle_datasets/
+
+# Temporary files
+*.tmp
+*.temp
+.~*

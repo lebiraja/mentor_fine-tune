@@ -1,0 +1,73 @@
+# ClarityMentor Training Configuration
+# Optimized for RTX 4050 (6GB VRAM) with QLoRA
+
+model:
+  base_model: "Qwen/Qwen2.5-1.5B-Instruct"
+  quantization: "4bit"
+  bnb_4bit_compute_dtype: "bfloat16"
+  bnb_4bit_quant_type: "nf4"
+  use_nested_quant: true
+
+lora:
+  r: 16
+  lora_alpha: 32
+  target_modules:
+    - q_proj
+    - k_proj
+    - v_proj
+    - o_proj
+    - gate_proj
+    - up_proj
+    - down_proj
+  lora_dropout: 0.05
+  bias: "none"
+  task_type: "CAUSAL_LM"
+
+training:
+  max_seq_length: 1024
+  per_device_train_batch_size: 1
+  gradient_accumulation_steps: 16  # Effective batch size = 16
+  num_train_epochs: 2
+  learning_rate: 2.0e-4
+  lr_scheduler_type: "cosine"
+  warmup_ratio: 0.03
+  weight_decay: 0.01
+
+  logging_steps: 10
+  save_steps: 500
+  eval_steps: 500
+  save_total_limit: 3
+
+  fp16: false
+  bf16: true  # Better for Ampere+ GPUs
+  gradient_checkpointing: true
+  optim: "paged_adamw_8bit"
+  max_grad_norm: 1.0
+
+  output_dir: "models/claritymentor-lora"
+  logging_dir: "logs/training"
+
+data:
+  train_file: "data/final/claritymentor_train.jsonl"
+  eval_file: "data/final/claritymentor_eval.jsonl"
+  system_prompt_file: "config/system_prompt.txt"
+
+dataset_mixing:
+  total_samples: 50000
+  ratios:
+    empathetic_dialogues_llm: 0.25
+    philosophy_qa: 0.20
+    counseling: 0.20
+    reddit_filtered: 0.20
+    quotes_advice: 0.10
+    conversation_starters: 0.05
+  eval_ratio: 0.05
+  shuffle_seed: 42
+
+# VRAM Estimate for RTX 4050 6GB:
+# - Base model (4-bit): ~1.5GB
+# - LoRA adapters: ~0.3GB
+# - Optimizer states: ~1.5GB
+# - Gradients: ~1.0GB
+# - Activations: ~1.5GB
+# - Total estimated: ~5.8GB (safe margin: 0.2GB)
