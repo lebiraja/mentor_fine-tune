@@ -1,0 +1,29 @@
+{
+  "total_input": 12209085,
+  "filtered_subreddit": 0,
+  "filtered_type": 0,
+  "filtered_length": 0,
+  "filtered_safety": 0,
+  "written": 15000,
+  "subreddit_counts": {
+    "r/AmItheAsshole": 1638,
+    "r/AITAH": 4539,
+    "r/relationship_advice": 3943,
+    "r/relationships": 1028,
+    "r/mentalhealth": 1695,
+    "r/depression": 238,
+    "r/TrueOffMyChest": 178,
+    "r/DecidingToBeBetter": 32,
+    "r/selfimprovement": 113,
+    "r/AskWomenOver30": 156,
+    "r/Advice": 273,
+    "r/LifeAdvice": 83,
+    "r/offmychest": 436,
+    "r/Anxiety": 244,
+    "r/socialskills": 163,
+    "r/confessions": 154,
+    "r/lonely": 28,
+    "r/AskMenOver30": 46,
+    "r/needadvice": 13
+  }
+}

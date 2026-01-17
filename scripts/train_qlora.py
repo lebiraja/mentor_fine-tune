@@ -111,25 +111,36 @@ def train_with_unsloth(
 
     print("Loading dataset...")
 
-    # Load dataset
-    dataset = load_dataset(
-        "json",
-        data_files={
-            "train": str(train_file),
-            "eval": str(eval_file),
-        }
-    )
+    # Load datasets separately to avoid schema mismatch
+    train_dataset = load_dataset("json", data_files=str(train_file), split="train")
+    eval_dataset = load_dataset("json", data_files=str(eval_file), split="train")
 
-    # Format dataset
+    # Remove metadata column if present (not needed for training)
+    if "metadata" in train_dataset.column_names:
+        train_dataset = train_dataset.remove_columns(["metadata"])
+    if "metadata" in eval_dataset.column_names:
+        eval_dataset = eval_dataset.remove_columns(["metadata"])
+
+    # Ensure tokenizer has proper settings for truncation
+    tokenizer.truncation_side = "right"
+    if tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token
+
+    # Format dataset with pre-truncation to avoid unsloth errors
     def format_sample(example):
         messages = example.get('messages', [])
         text = format_messages_to_text(messages, tokenizer)
-        return {"text": text}
+        # Pre-tokenize and truncate to max_seq_length
+        tokens = tokenizer(text, truncation=True, max_length=max_seq_length, return_tensors=None)
+        # Decode back to get truncated text
+        truncated_text = tokenizer.decode(tokens['input_ids'], skip_special_tokens=False)
+        return {"text": truncated_text}
 
-    formatted_dataset = dataset.map(format_sample, remove_columns=dataset["train"].column_names)
+    formatted_train = train_dataset.map(format_sample, remove_columns=train_dataset.column_names)
+    formatted_eval = eval_dataset.map(format_sample, remove_columns=eval_dataset.column_names)
 
-    print(f"Training samples: {len(formatted_dataset['train'])}")
-    print(f"Eval samples: {len(formatted_dataset['eval'])}")
+    print(f"Training samples: {len(formatted_train)}")
+    print(f"Eval samples: {len(formatted_eval)}")
 
     # Training arguments
     training_args = TrainingArguments(
@@ -158,10 +169,11 @@ def train_with_unsloth(
     trainer = SFTTrainer(
         model=model,
         tokenizer=tokenizer,
-        train_dataset=formatted_dataset["train"],
-        eval_dataset=formatted_dataset["eval"],
+        train_dataset=formatted_train,
+        eval_dataset=formatted_eval,
         dataset_text_field="text",
         max_seq_length=max_seq_length,
+        packing=False,  # Disable packing to allow proper truncation
         args=training_args,
     )
 
@@ -258,25 +270,34 @@ def train_with_transformers(
 
     print("Loading dataset...")
 
-    # Load dataset
-    dataset = load_dataset(
-        "json",
-        data_files={
-            "train": str(train_file),
-            "eval": str(eval_file),
-        }
-    )
+    # Load datasets separately to avoid schema mismatch
+    train_dataset = load_dataset("json", data_files=str(train_file), split="train")
+    eval_dataset = load_dataset("json", data_files=str(eval_file), split="train")
 
-    # Format dataset
+    # Remove metadata column if present (not needed for training)
+    if "metadata" in train_dataset.column_names:
+        train_dataset = train_dataset.remove_columns(["metadata"])
+    if "metadata" in eval_dataset.column_names:
+        eval_dataset = eval_dataset.remove_columns(["metadata"])
+
+    # Ensure tokenizer has proper settings for truncation
+    tokenizer.truncation_side = "right"
+
+    # Format dataset with pre-truncation
     def format_sample(example):
         messages = example.get('messages', [])
         text = format_messages_to_text(messages, tokenizer)
-        return {"text": text}
+        # Pre-tokenize and truncate to max_seq_length
+        tokens = tokenizer(text, truncation=True, max_length=max_seq_length, return_tensors=None)
+        # Decode back to get truncated text
+        truncated_text = tokenizer.decode(tokens['input_ids'], skip_special_tokens=False)
+        return {"text": truncated_text}
 
-    formatted_dataset = dataset.map(format_sample, remove_columns=dataset["train"].column_names)
+    formatted_train = train_dataset.map(format_sample, remove_columns=train_dataset.column_names)
+    formatted_eval = eval_dataset.map(format_sample, remove_columns=eval_dataset.column_names)
 
-    print(f"Training samples: {len(formatted_dataset['train'])}")
-    print(f"Eval samples: {len(formatted_dataset['eval'])}")
+    print(f"Training samples: {len(formatted_train)}")
+    print(f"Eval samples: {len(formatted_eval)}")
 
     # Training arguments
     training_args = TrainingArguments(
@@ -306,10 +327,11 @@ def train_with_transformers(
     trainer = SFTTrainer(
         model=model,
         tokenizer=tokenizer,
-        train_dataset=formatted_dataset["train"],
-        eval_dataset=formatted_dataset["eval"],
+        train_dataset=formatted_train,
+        eval_dataset=formatted_eval,
         dataset_text_field="text",
         max_seq_length=max_seq_length,
+        packing=False,  # Disable packing to allow proper truncation
         args=training_args,
     )
 

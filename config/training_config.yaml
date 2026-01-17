@@ -19,12 +19,12 @@ lora:
     - gate_proj
     - up_proj
     - down_proj
-  lora_dropout: 0.05
+  lora_dropout: 0  # 0 is faster with unsloth
   bias: "none"
   task_type: "CAUSAL_LM"
 
 training:
-  max_seq_length: 1024
+  max_seq_length: 512  # Reduced from 1024 to save memory
   per_device_train_batch_size: 1
   gradient_accumulation_steps: 16  # Effective batch size = 16
   num_train_epochs: 2
