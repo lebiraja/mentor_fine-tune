@@ -1,0 +1,78 @@
+{
+  "target_total": 50000,
+  "eval_ratio": 0.05,
+  "system_prompt_length": 575,
+  "sources": {
+    "empathetic_dialogues": {
+      "loaded": 26323,
+      "sampled": 15000
+    },
+    "philosophy_qa": {
+      "loaded": 11613,
+      "filtered": 11603,
+      "sampled": 11603
+    },
+    "counseling": {
+      "loaded": 26502,
+      "filtered": 23390,
+      "sampled": 12500
+    },
+    "conversation_starters": {
+      "loaded": 2999,
+      "filtered": 0,
+      "sampled": 0
+    },
+    "quotes_advice": {
+      "loaded": 4995,
+      "filtered": 4605,
+      "sampled": 4605
+    }
+  },
+  "filtering": {
+    "philosophy_qa": {
+      "input": 11613,
+      "removed_templates": 0,
+      "removed_questions": 10,
+      "removed_invalid": 0,
+      "kept": 11603
+    },
+    "counseling": {
+      "input": 26502,
+      "removed_templates": 4,
+      "removed_questions": 1819,
+      "removed_invalid": 1289,
+      "kept": 23390
+    },
+    "conversation_starters": {
+      "input": 2999,
+      "removed_templates": 203,
+      "removed_questions": 2796,
+      "removed_invalid": 0,
+      "kept": 0
+    },
+    "quotes_advice": {
+      "input": 4995,
+      "removed_templates": 0,
+      "removed_questions": 390,
+      "removed_invalid": 0,
+      "kept": 4605
+    }
+  },
+  "final": {
+    "train_count": 31621,
+    "eval_count": 1664,
+    "total": 33285,
+    "distribution": {
+      "counseling": 8072,
+      "philosophy_qa": 11594,
+      "empathetic_dialogues": 13595,
+      "quotes_advice": 24
+    }
+  },
+  "deduplication": {
+    "original": 43708,
+    "after_exact": 34356,
+    "kept": 33285,
+    "removed": 10423
+  }
+}
