@@ -48,8 +48,8 @@ training:
   logging_dir: "logs/training"
 
 data:
-  train_file: "data/final/claritymentor_train.jsonl"
-  eval_file: "data/final/claritymentor_eval.jsonl"
+  train_file: "data/final/claritymentor_train_v2.jsonl"
+  eval_file: "data/final/claritymentor_eval_v2.jsonl"
   system_prompt_file: "config/system_prompt.txt"
 
 dataset_mixing:
