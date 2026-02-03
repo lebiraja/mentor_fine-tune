@@ -1,0 +1,43 @@
+audio:
+  sample_rate: 16000
+  channels: 1
+  chunk_duration: 0.5  # seconds
+  input_device: null   # null = default microphone
+  output_device: null  # null = default speaker
+
+vad:
+  threshold: 0.5
+  min_speech_duration: 0.5  # seconds
+  min_silence_duration: 0.8  # seconds to consider speech ended
+  padding_duration: 0.3
+
+models:
+  stt:
+    model_name: "distil-whisper/distil-medium.en"
+    language: "en"
+    compute_type: "float16"
+
+  speech_emotion:
+    model_name: "FunAudioLLM/SenseVoice-Small"
+    # Alternative: speechbrain/emotion-recognition-wav2vec2-IEMOCAP
+
+  text_emotion:
+    model_name: "j-hartmann/emotion-english-distilroberta-base"
+
+  tts:
+    model_name: "parler-tts/parler-tts-mini-expresso"
+    voice_description: "A calm, thoughtful male voice speaks clearly"
+
+memory:
+  aggressive_cleanup: true
+  persistent_llm: true
+  max_vram_gb: 5.5
+
+generation:
+  max_response_tokens: 512
+  temperature: 0.7
+  top_p: 0.9
+
+latency:
+  target_total_ms: 3000
+  enable_streaming_tts: false

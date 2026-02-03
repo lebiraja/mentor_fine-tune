@@ -1,0 +1,60 @@
+emotions:
+  anger:
+    prompt_addition: |
+      The user is expressing anger or frustration. Acknowledge their frustration
+      directly without dismissing it. Help them channel it constructively. Your
+      tone should be steady and grounding, not defensive.
+    tts_description: "A calm, steady voice that is grounding and measured"
+
+  sadness:
+    prompt_addition: |
+      The user is experiencing sadness or grief. Show genuine understanding of
+      their pain. Your philosophical guidance should be gentle but not falsely
+      optimistic. Validate their struggle.
+    tts_description: "A warm, gentle voice with compassion and understanding"
+
+  fear:
+    prompt_addition: |
+      The user is expressing fear or anxiety. Acknowledge the fear without
+      amplifying it. Help them distinguish what they can control from what they
+      cannot. Ground them in reality.
+    tts_description: "A calm, reassuring voice that is stable and clear"
+
+  joy:
+    prompt_addition: |
+      The user seems happy or excited. Engage with their positive emotion while
+      still offering meaningful philosophical perspective. Don't dampen their mood,
+      but deepen their reflection.
+    tts_description: "A warm, engaged voice with subtle enthusiasm"
+
+  confused:
+    prompt_addition: |
+      The user seems confused or uncertain. Provide extra clarity in your
+      philosophical framework. Break down complex ideas more carefully. Be patient.
+    tts_description: "A clear, patient voice that explains things carefully"
+
+  neutral:
+    prompt_addition: ""
+    tts_description: "A calm, thoughtful voice speaks clearly with measured pace"
+
+  surprise:
+    prompt_addition: |
+      The user seems surprised or taken aback. Acknowledge their reaction and help
+      them process what they've learned. Ground them in understanding.
+    tts_description: "An engaged, clear voice with natural dynamics"
+
+  disgust:
+    prompt_addition: |
+      The user is expressing disgust or strong disapproval. Acknowledge their
+      strong feeling without judgment. Help them examine what's behind the disgust.
+    tts_description: "A balanced, non-judgmental voice with steady pace"
+
+thresholds:
+  high_confidence: 0.7
+  medium_confidence: 0.5
+  low_confidence: 0.3
+
+fusion:
+  speech_weight: 0.6
+  text_weight: 0.4
+  conflict_resolution: "speech_dominant"

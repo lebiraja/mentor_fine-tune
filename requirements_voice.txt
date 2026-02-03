@@ -1,0 +1,23 @@
+# Voice Processing Dependencies
+# Note: transformers is already in main requirements.txt (>=4.57.0)
+
+# Audio I/O
+sounddevice>=0.5.0
+soundfile>=0.12.0
+librosa>=0.10.0
+
+# Speech-to-Text (transformers already in main requirements)
+torchaudio>=2.0.0
+
+# Text-to-Speech
+# Primary: Parler-TTS (optional - has transformers version conflict)
+#   Install manually with: pip install --no-deps git+https://github.com/huggingface/parler-tts.git
+# Fallback: pyttsx3 (required) - works offline without ML models
+pyttsx3>=2.90
+
+# Emotion Detection
+speechbrain>=1.0.0
+
+# Audio Processing
+webrtcvad>=2.0.10
+scipy>=1.10.0
