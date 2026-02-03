@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ClarityMentor - Voice Chat UI</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <h1 class="logo">🧠 ClarityMentor</h1>
+                <p class="subtitle">Voice-to-Voice Philosophical Mentor</p>
+            </div>
+            <div class="header-controls">
+                <button id="themeToggle" class="theme-btn" title="Toggle dark/light mode">
+                    🌙
+                </button>
+                <button id="newSessionBtn" class="new-session-btn" title="Start new conversation">
+                    New Chat
+                </button>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main">
+            <!-- Chat History Panel -->
+            <section class="chat-section">
+                <div class="chat-header">
+                    <h2>Conversation</h2>
+                    <span class="session-id" id="sessionId">Loading...</span>
+                </div>
+
+                <div class="chat-messages" id="chatMessages">
+                    <div class="welcome-message">
+                        <h3>Welcome to ClarityMentor</h3>
+                        <p>Click the microphone button below to start a conversation</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Control Panel -->
+            <section class="control-section">
+                <!-- Status Display -->
+                <div class="status-bar">
+                    <div class="status-item">
+                        <span class="status-label">Status:</span>
+                        <span class="status-value" id="statusText">Ready</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">Emotion:</span>
+                        <span class="emotion-badge" id="emotionBadge">—</span>
+                    </div>
+                </div>
+
+                <!-- Microphone Control -->
+                <div class="mic-container">
+                    <button id="recordBtn" class="record-btn" title="Record audio">
+                        <span class="mic-icon">🎤</span>
+                        <span class="btn-text">Record</span>
+                    </button>
+                    <button id="stopBtn" class="stop-btn" disabled title="Stop recording">
+                        <span class="stop-icon">⏹️</span>
+                        <span class="btn-text">Stop</span>
+                    </button>
+                </div>
+
+                <!-- Loading Spinner -->
+                <div class="spinner-container" id="spinnerContainer" style="display: none;">
+                    <div class="spinner"></div>
+                    <p id="processingText">Processing...</p>
+                </div>
+
+                <!-- Waveform Visualization -->
+                <div class="waveform" id="waveform">
+                    <div class="waveform-bar"></div>
+                    <div class="waveform-bar"></div>
+                    <div class="waveform-bar"></div>
+                    <div class="waveform-bar"></div>
+                    <div class="waveform-bar"></div>
+                </div>
+
+                <!-- Audio Playback -->
+                <div class="audio-container" id="audioContainer" style="display: none;">
+                    <audio id="audioPlayer" controls>
+                        <source id="audioSource" type="audio/wav">
+                        Your browser does not support audio playback
+                    </audio>
+                </div>
+
+                <!-- File Upload Alternative -->
+                <div class="upload-section">
+                    <label for="fileInput" class="upload-label">
+                        📁 Or upload an audio file
+                    </label>
+                    <input
+                        type="file"
+                        id="fileInput"
+                        accept="audio/*"
+                        style="display: none;"
+                    >
+                </div>
+            </section>
+        </main>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <p>Connected to: <code>ws://localhost:2323/ws/voice</code></p>
+            <p>🔒 All conversations are processed locally</p>
+        </footer>
+    </div>
+
+    <!-- Scripts -->
+    <script src="app.js"></script>
+</body>
+</html>
