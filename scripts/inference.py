@@ -13,26 +13,42 @@ import torch
 
 
 def load_model(model_path: Path, max_seq_length: int = 2048):
-    """Load the fine-tuned model."""
+    """Load the fine-tuned ClarityMentor model with LoRA adapter."""
+    # ClarityMentor is a LoRA adapter for Qwen2.5-1.5B-Instruct
+    base_model_id = "Qwen/Qwen2.5-1.5B-Instruct"
+
     try:
         from unsloth import FastLanguageModel
+        from peft import PeftModel
+
         print("Loading model with unsloth...")
+        print(f"  Base model: {base_model_id}")
         model, tokenizer = FastLanguageModel.from_pretrained(
-            str(model_path),
+            base_model_id,
             max_seq_length=max_seq_length,
             load_in_4bit=True,
         )
+
+        print(f"  LoRA adapter: {model_path}")
+        model = PeftModel.from_pretrained(model, str(model_path))
+
         FastLanguageModel.for_inference(model)
-    except ImportError:
+
+    except (ImportError, Exception) as e:
+        print(f"Unsloth loading failed: {e}, trying transformers + peft...")
         from transformers import AutoModelForCausalLM, AutoTokenizer
         from peft import PeftModel
-        print("Loading model with transformers...")
-        tokenizer = AutoTokenizer.from_pretrained(str(model_path))
+
+        print(f"  Base model: {base_model_id}")
+        tokenizer = AutoTokenizer.from_pretrained(base_model_id)
         model = AutoModelForCausalLM.from_pretrained(
-            str(model_path),
+            base_model_id,
             device_map="auto",
             load_in_4bit=True,
         )
+
+        print(f"  LoRA adapter: {model_path}")
+        model = PeftModel.from_pretrained(model, str(model_path))
 
     return model, tokenizer
 

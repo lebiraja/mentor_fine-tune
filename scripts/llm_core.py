@@ -10,36 +10,58 @@ import torch
 
 def load_claritymentor_model(model_path: Path, max_seq_length: int = 2048):
     """
-    Load the fine-tuned ClarityMentor model.
+    Load the fine-tuned ClarityMentor model with LoRA adapter.
 
     Args:
-        model_path: Path to LoRA model directory
+        model_path: Path to LoRA model directory (local directory with adapter files)
         max_seq_length: Maximum sequence length
 
     Returns:
         (model, tokenizer) tuple
     """
+    # ClarityMentor is a LoRA adapter for Qwen2.5-1.5B-Instruct
+    base_model_id = "Qwen/Qwen2.5-1.5B-Instruct"
+    model_path = Path(model_path)
+
     try:
         from unsloth import FastLanguageModel
+        from peft import PeftModel
 
-        print("Loading ClarityMentor with unsloth...")
+        print(f"Loading base model: {base_model_id}...")
         model, tokenizer = FastLanguageModel.from_pretrained(
-            str(model_path),
+            base_model_id,
             max_seq_length=max_seq_length,
             load_in_4bit=True,
         )
+
+        print(f"Loading LoRA adapter from: {model_path}...")
+        # Load from local directory
+        model = PeftModel.from_pretrained(model, str(model_path))
+
         FastLanguageModel.for_inference(model)
 
-    except ImportError:
+    except Exception as e:
+        print(f"Unsloth loading failed ({type(e).__name__}): {e}")
+        print("Trying transformers + peft...")
         from transformers import AutoModelForCausalLM, AutoTokenizer
+        from peft import PeftModel
 
-        print("Loading ClarityMentor with transformers...")
-        tokenizer = AutoTokenizer.from_pretrained(str(model_path))
+        print(f"Loading base model: {base_model_id}...")
+        tokenizer = AutoTokenizer.from_pretrained(base_model_id)
         model = AutoModelForCausalLM.from_pretrained(
-            str(model_path),
+            base_model_id,
             device_map="auto",
+            torch_dtype=torch.bfloat16,
             load_in_4bit=True,
         )
+
+        print(f"Loading LoRA adapter from: {model_path}...")
+        # Load from local directory - check if adapter_config.json exists
+        adapter_config = model_path / "adapter_config.json"
+        if not adapter_config.exists():
+            raise FileNotFoundError(f"adapter_config.json not found at {model_path}")
+
+        model = PeftModel.from_pretrained(model, str(model_path))
 
     return model, tokenizer
 
