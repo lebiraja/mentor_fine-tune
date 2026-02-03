@@ -1,0 +1,15 @@
+FROM node:20-alpine
+
+# Install a simple HTTP server
+RUN npm install -g http-server
+
+WORKDIR /app
+
+# Copy the sample-ui files
+COPY sample-ui/ .
+
+# Expose the frontend port
+EXPOSE 2000
+
+# Run the HTTP server
+CMD ["http-server", "-p", "2000", "-c-1"]

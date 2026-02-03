@@ -1,0 +1,73 @@
+version: '3.8'
+
+services:
+  # Backend FastAPI service
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: claritymentor-backend
+    ports:
+      - "2323:2323"
+    environment:
+      - HOST=0.0.0.0
+      - PORT=2323
+      - DEBUG=False
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./models:/app/models
+      - ./data:/app/data
+      - ./config:/app/config
+      - ./logs:/app/logs
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:2323/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - claritymentor-network
+    restart: unless-stopped
+
+  # Frontend (sample-ui) service
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: claritymentor-frontend
+    ports:
+      - "2000:2000"
+    volumes:
+      - ./sample-ui:/app
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - claritymentor-network
+    restart: unless-stopped
+    environment:
+      - BACKEND_URL=http://backend:2323
+
+  # Optional: Redis service for caching/sessions (port 2999)
+  cache:
+    image: redis:7-alpine
+    container_name: claritymentor-cache
+    ports:
+      - "2999:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - claritymentor-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+networks:
+  claritymentor-network:
+    driver: bridge
+
+volumes:
+  redis-data:
