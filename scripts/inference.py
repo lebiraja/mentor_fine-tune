@@ -12,7 +12,7 @@ from pathlib import Path
 import torch
 
 
-def load_model(model_path: Path, max_seq_length: int = 512):
+def load_model(model_path: Path, max_seq_length: int = 2048):
     """Load the fine-tuned model."""
     try:
         from unsloth import FastLanguageModel
@@ -85,15 +85,26 @@ def generate_response(
     # Decode only the new tokens (excluding the starter we added)
     full_response = tokenizer.decode(outputs[0][inputs.shape[1]:], skip_special_tokens=True)
     response = assistant_starter + full_response
-    return response.strip()
+
+    # Clean up any unwanted fragments from the prompt
+    response = response.strip()
+    # Stop at common prompt markers if they appear
+    for marker in ["Your turn!", "BEFORE RESPOND:", "FORMAT:", "Next step:", "4. CLOSING", "be specific"]:
+        if marker in response:
+            response = response[:response.index(marker)].strip()
+            break
+
+    return response
 
 
 def interactive_mode(model, tokenizer, system_prompt: str):
-    """Run interactive chat mode."""
+    """Run interactive chat mode with conversation history."""
     print("\n" + "="*60)
     print("ClarityMentor Interactive Mode")
     print("="*60)
     print("Type your message and press Enter. Type 'quit' to exit.\n")
+
+    conversation_history = []
 
     while True:
         try:
@@ -104,9 +115,51 @@ def interactive_mode(model, tokenizer, system_prompt: str):
                 print("Goodbye!")
                 break
 
+            # Add user message to history
+            conversation_history.append({"role": "user", "content": user_input})
+
+            # Build messages with full history
+            messages = [{"role": "system", "content": system_prompt}]
+            messages.extend(conversation_history)
+
+            # Add a starter to steer generation
+            assistant_starter = "I understand. Here's my perspective:\n\n"
+
+            inputs = tokenizer.apply_chat_template(
+                messages,
+                return_tensors="pt",
+                add_generation_prompt=True,
+            )
+
+            # Append the assistant starter to guide generation
+            starter_tokens = tokenizer.encode(assistant_starter, add_special_tokens=False, return_tensors="pt")
+            inputs = torch.cat([inputs, starter_tokens], dim=1).to(model.device)
+
+            outputs = model.generate(
+                inputs,
+                max_new_tokens=512,
+                temperature=0.7,
+                top_p=0.9,
+                do_sample=True,
+                pad_token_id=tokenizer.pad_token_id or tokenizer.eos_token_id,
+            )
+
+            # Decode only the new tokens
+            full_response = tokenizer.decode(outputs[0][inputs.shape[1]:], skip_special_tokens=True)
+            response = assistant_starter + full_response
+
+            # Clean up prompt fragments
+            response = response.strip()
+            for marker in ["Your turn!", "BEFORE RESPOND:", "FORMAT:", "Next step:", "4. CLOSING", "be specific"]:
+                if marker in response:
+                    response = response[:response.index(marker)].strip()
+                    break
+
             print("\nClarityMentor: ", end="", flush=True)
-            response = generate_response(model, tokenizer, user_input, system_prompt)
             print(response)
+
+            # Add assistant response to history
+            conversation_history.append({"role": "assistant", "content": response})
 
         except KeyboardInterrupt:
             print("\n\nGoodbye!")

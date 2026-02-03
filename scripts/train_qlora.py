@@ -366,13 +366,13 @@ def main():
     parser.add_argument(
         "--train-file",
         type=Path,
-        default=Path("/home/lebi/projects/mentor/data/final/claritymentor_train.jsonl"),
+        default=Path("/home/lebi/projects/mentor/data/final/claritymentor_train_v2.jsonl"),
         help="Path to training data"
     )
     parser.add_argument(
         "--eval-file",
         type=Path,
-        default=Path("/home/lebi/projects/mentor/data/final/claritymentor_eval.jsonl"),
+        default=Path("/home/lebi/projects/mentor/data/final/claritymentor_eval_v2.jsonl"),
         help="Path to evaluation data"
     )
     parser.add_argument(
