@@ -88,3 +88,4 @@ kaggle_datasets/
 *.tmp
 *.temp
 .~*
+.env
