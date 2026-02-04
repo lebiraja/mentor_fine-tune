@@ -7,6 +7,7 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y \
     build-essential \
     git \
+    curl \
     ffmpeg \
     libsndfile1 \
     libsndfile1-dev \
@@ -18,22 +19,25 @@ RUN apt-get update && apt-get install -y \
 COPY requirements.txt requirements_backend.txt requirements_voice.txt ./
 
 # Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt && \
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt && \
     pip install --no-cache-dir -r requirements_backend.txt && \
     pip install --no-cache-dir -r requirements_voice.txt
 
-# Copy the entire project
-COPY . .
+# Copy backend code
+COPY backend/ ./backend/
+COPY scripts/ ./scripts/
+COPY config/ ./config/
 
-# Create directories for models and data
-RUN mkdir -p /app/models /app/data /app/config
+# Create directories for models, data, and logs
+RUN mkdir -p /app/models /app/data /app/logs
 
 # Expose the backend port
 EXPOSE 2323
 
 # Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:2323/api/health').read()" || exit 1
+HEALTHCHECK --interval=30s --timeout=10s --start-period=120s --retries=3 \
+    CMD curl -f http://localhost:2323/api/health || exit 1
 
 # Run the FastAPI backend
-CMD ["python", "-m", "uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "2323"]
+CMD ["python", "-m", "uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "2323", "--ws-max-size", "10485760"]

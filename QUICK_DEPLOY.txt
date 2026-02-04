@@ -1,0 +1,111 @@
+================================================================================
+  CLARITYMENTOR - QUICK DEPLOYMENT COMMANDS
+================================================================================
+
+📋 MODEL PATH: ./models/claritymentor-lora/final
+
+================================================================================
+  🚀 AUTOMATED DEPLOYMENT (EASIEST)
+================================================================================
+
+./deploy.sh
+
+Then open: http://localhost:2000
+
+================================================================================
+  🔧 MANUAL DEPLOYMENT
+================================================================================
+
+# Step 1: Verify model files exist
+ls -la models/claritymentor-lora/final/
+
+# Step 2: Build images (choose one)
+docker-compose build                              # GPU mode
+docker-compose -f docker-compose.cpu.yml build    # CPU mode
+
+# Step 3: Start services (choose one)
+docker-compose up -d                              # GPU mode
+docker-compose -f docker-compose.cpu.yml up -d    # CPU mode
+
+# Step 4: Watch logs
+docker-compose logs -f backend
+
+# Step 5: Wait for "All models loaded and ready!" (2-3 minutes)
+
+# Step 6: Open http://localhost:2000
+
+================================================================================
+  🔍 VERIFY MODEL MOUNTING
+================================================================================
+
+# Check models on host
+ls -la ./models/claritymentor-lora/final/
+
+# Check models in container
+docker-compose exec backend ls -la /app/models/claritymentor-lora/final/
+
+================================================================================
+  📊 MONITOR & TEST
+================================================================================
+
+# Container status
+docker-compose ps
+
+# View logs
+docker-compose logs -f
+
+# Test backend
+curl http://localhost:2323/api/health
+
+# Test frontend
+curl http://localhost:2000/
+
+================================================================================
+  🛑 STOP SERVICES
+================================================================================
+
+docker-compose down
+
+================================================================================
+  🔄 RESTART/UPDATE
+================================================================================
+
+# Restart all
+docker-compose restart
+
+# Restart backend only
+docker-compose restart backend
+
+# Update model files (no rebuild needed!)
+cp new_model/* models/claritymentor-lora/final/
+docker-compose restart backend
+
+================================================================================
+  📂 VOLUME MOUNTS (AUTOMATIC)
+================================================================================
+
+Host                                Container
+./models/claritymentor-lora/final → /app/models/claritymentor-lora/final (ro)
+./config                          → /app/config (ro)
+./data                            → /app/data (rw)
+./logs                            → /app/logs (rw)
+
+================================================================================
+  🌐 ACCESS POINTS
+================================================================================
+
+Frontend:     http://localhost:2000
+Backend API:  http://localhost:2323
+Health Check: http://localhost:2323/api/health
+Redis:        localhost:2999
+
+================================================================================
+  📚 DOCUMENTATION
+================================================================================
+
+./deploy.sh                      - Automated deployment
+DEPLOYMENT_COMMANDS.md           - All commands reference
+DOCKER_COMPLETE_GUIDE.md         - Full deployment guide
+DOCKER_DEPLOYMENT_SUMMARY.md     - Technical details
+
+================================================================================

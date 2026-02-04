@@ -1,7 +1,10 @@
 version: '3.8'
 
+# CPU-only version (for systems without NVIDIA GPU)
+# Use this if you don't have GPU or want to test without GPU
+
 services:
-  # Backend FastAPI service
+  # Backend FastAPI service (CPU-only)
   backend:
     build:
       context: .
@@ -14,22 +17,16 @@ services:
       - PORT=2323
       - DEBUG=False
       - PYTHONUNBUFFERED=1
+      - CUDA_VISIBLE_DEVICES=-1  # Disable GPU
     volumes:
-      # Mount the trained model
+      # Mount the trained model (read-only)
       - ./models/claritymentor-lora/final:/app/models/claritymentor-lora/final:ro
-      # Mount config files
+      # Mount config files (read-only)
       - ./config:/app/config:ro
-      # Mount data directory (read-write for processing)
+      # Mount data directory (read-write)
       - ./data:/app/data
       # Mount logs directory
       - ./logs:/app/logs
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:2323/api/health"]
       interval: 30s
