@@ -10,7 +10,7 @@ import type { ChatMessage } from './types/chat';
 import type { WebSocketMessage, EmotionData } from './types/api';
 import { Mic, MicOff, Send, Volume2, VolumeX, MessageSquare, Radio } from 'lucide-react';
 
-const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:2323/ws/voice';
+const WS_URL = import.meta.env.VITE_WS_URL || (window.location.protocol === 'http:' ? `ws://${window.location.host}/ws/voice` : 'ws://localhost:2323/ws/voice');
 
 function App() {
   const [isHealthy, setIsHealthy] = useState(false);

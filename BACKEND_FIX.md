@@ -1,97 +1,65 @@
-# Backend Startup Fix - TTS Import Error
+# Backend SSL Certificate Error - SOLUTION
 
 ## Problem
-The backend failed to start with error:
+Backend is crashing with SSL error when downloading models from HuggingFace:
 ```
-ImportError: cannot import name 'TextToSpeech' from 'scripts.voice.tts'
-```
-
-## Root Cause
-The TTS class in `scripts/voice/tts.py` is named `EmotionalTTS`, not `TextToSpeech`.
-
-## Solution Applied
-
-### 1. Fixed `backend/services/model_service.py`
-Changed the TTS loading from:
-```python
-from scripts.voice.tts import TextToSpeech
-tts_config = voice_config.get("models", {}).get("tts", {})
-self._models["tts"] = TextToSpeech(tts_config)
+certificate verify failed: Hostname mismatch, certificate is not valid for 'huggingface.co'
 ```
 
-To:
-```python
-from scripts.voice.tts import EmotionalTTS
-tts_config = voice_config.get("models", {}).get("tts", {})
-tts = EmotionalTTS(tts_config)
-tts.load()  # Load the model
-self._models["tts"] = tts
+## Quick Solutions
+
+### Option 1: Disable SSL Verification (Quick Fix)
+Add to docker-compose.yml backend environment:
+
+```yaml
+environment:
+  - CURL_CA_BUNDLE=""
+  - REQUESTS_CA_BUNDLE=""
+  - SSL_CERT_FILE=""
+  - HF_HUB_DISABLE_IMPLICIT_TOKEN=1
+  - HF_HUB_OFFLINE=0
 ```
 
-### 2. Fixed `backend/services/tts_service.py`
-The `EmotionalTTS.synthesize()` method returns a numpy array, not bytes. Updated the conversion:
+### Option 2: Pre-download Models on Host (Recommended)
+Download models before starting Docker:
 
-```python
-def _synthesize_blocking(self, text: str, emotion: Optional[Dict[str, Any]] = None) -> bytes:
-    import numpy as np
-    from backend.core.audio_utils import array_to_bytes
-
-    # Call the underlying model's synthesize method (returns numpy array)
-    audio_array = self.model.synthesize(text, emotion)
-
-    # Convert numpy array to bytes
-    if isinstance(audio_array, np.ndarray) and len(audio_array) > 0:
-        return array_to_bytes(audio_array)
-    else:
-        return b""
-```
-
-## Verification
-✅ Imports now work correctly:
 ```bash
-./venv/bin/python -c "from backend.services.model_service import ModelService; from scripts.voice.tts import EmotionalTTS; print('✓ Imports OK')"
+# Install transformers on host
+pip install transformers
+
+# Download models
+python3 << 'PYTHON'
+from transformers import AutoProcessor, AutoModelForSpeechSeq2Seq
+processor = AutoProcessor.from_pretrained("distil-whisper/distil-medium.en")
+model = AutoModelForSpeechSeq2Seq.from_pretrained("distil-whisper/distil-medium.en")
+print("Models downloaded to ~/.cache/huggingface/")
+PYTHON
+
+# Mount cache in docker-compose.yml
+volumes:
+  - ~/.cache/huggingface:/root/.cache/huggingface:ro
 ```
 
-## Next Steps
+### Option 3: Use Different Network
+The SSL error might be due to network proxy/firewall. Try:
 
-### Start the Backend
 ```bash
-cd /home/lebi/projects/mentor
-./run_backend.sh
+# Check if you can reach huggingface.co
+curl -v https://huggingface.co
+
+# If behind corporate proxy, add to docker-compose.yml:
+environment:
+  - HTTP_PROXY=http://your-proxy:port
+  - HTTPS_PROXY=http://your-proxy:port
+  - NO_PROXY=localhost,127.0.0.1
 ```
 
-**First run** will:
-1. Load STT model (DistilWhisper) - ~1 min
-2. Load TTS model (Parler-TTS or fallback to pyttsx3) - ~1 min
-3. Load emotion models (Text + Speech) - ~30 sec
-4. Load LLM (ClarityMentor) - ~1 min
-5. Load VAD (Silero) - ~10 sec
+## Apply Fix Now
 
-**Total first-run time:** ~3-5 minutes
-
-Once you see:
-```
-✓ All models loaded and ready!
-
-WebSocket endpoint: ws://localhost:2323/ws/voice
-Health check: http://localhost:2323/api/health
-```
-
-### Test the Backend
+Run this to update docker-compose.yml:
 ```bash
-# In another terminal
-cd /home/lebi/projects/mentor
-./run_test_client.sh
+# Stop containers
+docker-compose down
+
+# I'll update the file...
 ```
-
-## Files Modified
-- ✅ `backend/services/model_service.py` - Fixed TTS class import and loading
-- ✅ `backend/services/tts_service.py` - Fixed numpy array to bytes conversion
-
-## Status
-🚀 **Ready to use!** The backend should now start correctly on port 2323.
-
----
-
-**Time to test:** ~5-7 minutes (1st run includes model loading)
-**Next runs:** ~1 minute (models cached)

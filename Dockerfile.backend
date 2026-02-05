@@ -13,6 +13,8 @@ RUN apt-get update && apt-get install -y \
     libsndfile1-dev \
     libportaudio2 \
     portaudio19-dev \
+    espeak \
+    espeak-ng \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements files
