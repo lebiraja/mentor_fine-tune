@@ -33,6 +33,10 @@ async def voice_websocket(websocket: WebSocket):
         while True:
             # Receive audio chunk
             data = await websocket.receive()
+            
+            # Check for disconnect
+            if data.get("type") == "websocket.disconnect":
+                break
 
             if "bytes" not in data:
                 continue

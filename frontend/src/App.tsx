@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { GlassCard } from './components/ui/glass-card';
 import { GlassButton } from './components/ui/glass-button';
 import { GlassInput } from './components/ui/glass-input';
@@ -36,11 +36,24 @@ function App() {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const audioContextRef = useRef<AudioContext | null>(null);
+  const isMutedRef = useRef(false);
+
+  // Sync muted state to ref
+  useEffect(() => {
+    isMutedRef.current = isMuted;
+  }, [isMuted]);
+
+  // Ref to track latest emotion for message handler
+  const currentEmotionRef = useRef<EmotionData | null>(null);
+  useEffect(() => {
+    currentEmotionRef.current = currentEmotion;
+  }, [currentEmotion]);
 
   // Handle WebSocket messages
-  function handleWebSocketMessage(message: WebSocketMessage | ArrayBuffer) {
+  const handleWebSocketMessage = useCallback((message: WebSocketMessage | ArrayBuffer) => {
     if (message instanceof ArrayBuffer) {
-      if (!isMuted) {
+      // Check muted via ref since this callback is memoized
+      if (!isMutedRef.current) {
         playAudioResponse(message);
       }
       setIsProcessing(false);
@@ -57,9 +70,11 @@ function App() {
         break;
       case 'emotion':
         setCurrentEmotion(message.data);
+        currentEmotionRef.current = message.data;
         break;
       case 'response':
-        addMessage('assistant', message.text, currentEmotion || undefined);
+        // Use ref to get latest emotion since state may not have updated yet
+        addMessage('assistant', message.text, currentEmotionRef.current || undefined);
         break;
       case 'error':
         toast.error(message.message);
@@ -67,7 +82,7 @@ function App() {
         setStatusMessage('');
         break;
     }
-  }
+  }, []);
 
   // WebSocket connection for voice mode
   const { isConnected, sendAudio, disconnect, reconnect } = useWebSocket({
@@ -121,12 +136,16 @@ function App() {
 
   // Connect/disconnect WebSocket when mode changes
   useEffect(() => {
-    if (mode === 'voice' && !isConnected && view === 'chat') {
-      reconnect();
+    if (mode === 'voice' && view === 'chat') {
+      // Only connect if not already connected
+      if (!isConnected) {
+        console.log('Voice mode activated, connecting WebSocket...');
+        reconnect();
+      }
     } else if (mode === 'text') {
       disconnect();
     }
-  }, [mode, view]);
+  }, [mode, view, isConnected, reconnect, disconnect]);
 
   function addMessage(role: 'user' | 'assistant', content: string, emotion?: EmotionData) {
     setMessages((prev) => [...prev, {

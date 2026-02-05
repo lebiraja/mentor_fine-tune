@@ -138,7 +138,7 @@ class EmotionalTTS:
             text: Text to synthesize
 
         Returns:
-            Audio array (22050 Hz for pyttsx3)
+            Audio array (resampled to 16000 Hz for consistency)
         """
         try:
             import wave
@@ -154,8 +154,7 @@ class EmotionalTTS:
 
             # Read and convert to numpy array
             with wave.open(temp_path, 'rb') as wav_file:
-                # Update sample rate for playback
-                self.sample_rate = wav_file.getframerate()
+                original_rate = wav_file.getframerate()
                 frames = wav_file.readframes(wav_file.getnframes())
                 audio_data = np.frombuffer(frames, dtype=np.int16)
                 # Normalize to float32 [-1, 1]
@@ -164,12 +163,25 @@ class EmotionalTTS:
             # Clean up temp file
             os.unlink(temp_path)
 
-            return audio_data
+            # Resample to 16000 Hz for consistency with frontend
+            if original_rate != 16000:
+                # Simple linear interpolation resampling
+                duration = len(audio_data) / original_rate
+                new_length = int(duration * 16000)
+                indices = np.linspace(0, len(audio_data) - 1, new_length)
+                audio_data = np.interp(indices, np.arange(len(audio_data)), audio_data)
+                self.sample_rate = 16000
+            else:
+                self.sample_rate = original_rate
+
+            return audio_data.astype(np.float32)
 
         except Exception as e:
             print(f"Error with pyttsx3 synthesis: {e}")
+            import traceback
+            traceback.print_exc()
             # Return a short silence as fallback
-            return np.zeros(22050, dtype=np.float32)  # 1 second of silence
+            return np.zeros(16000, dtype=np.float32)  # 1 second of silence at 16kHz
 
     def _get_voice_description(
         self, emotion_context: Optional[Dict[str, Any]] = None
