@@ -22,6 +22,8 @@ services:
       - ./models/claritymentor-lora/final:/app/models/claritymentor-lora/final:ro
       # Mount config files
       - ./config:/app/config:ro
+      # Mount scripts for development (hot reloading)
+      - ./scripts:/app/scripts:ro
       # Mount data directory (read-write for processing)
       - ./data:/app/data
       # Mount logs directory

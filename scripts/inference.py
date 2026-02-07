@@ -98,7 +98,7 @@ def generate_response(
         pad_token_id=tokenizer.pad_token_id or tokenizer.eos_token_id,
     )
 
-    # Decode only the new tokens (excluding the starter we added)
+    # Decode only the new tokens
     full_response = tokenizer.decode(outputs[0][inputs.shape[1]:], skip_special_tokens=True)
     response = assistant_starter + full_response
 
