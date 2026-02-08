@@ -23,36 +23,22 @@ pip install --no-deps git+https://github.com/huggingface/parler-tts.git
 
 ## TTS Options
 
-### Option 1: Parler-TTS (Recommended - Neural, Emotion-Controlled)
+### Primary Option: CosyVoice (Recommended - Neural, Emotion-Controlled)
 ```bash
-pip install --no-deps git+https://github.com/huggingface/parler-tts.git
+pip install -r requirements_voice.txt
 ```
 
 **Pros:**
-- High-quality neural speech synthesis
-- Emotion-controlled voice characteristics
-- Natural-sounding output
+- State-of-the-art neural speech synthesis
+- Strong emotion control (Happy, Sad, Angry, etc.)
+- Natural prosody and pacing
+- Multilingual support
 
 **Cons:**
-- Version conflict with newer transformers
-- Requires downloading ~900MB of models
+- Requires GPU for real-time performance
+- Larger model download (~2GB)
 
-### Option 2: pyttsx3 (Default Fallback - Simple, No ML)
-Already included in `requirements_voice.txt`
-
-**Pros:**
-- Zero dependency conflicts
-- Works offline with system TTS engines
-- No model downloads needed
-- Works immediately
-
-**Cons:**
-- Lower quality audio
-- No emotion control
-- Limited voice options
-- More robotic sounding
-
-## Verification
+### Verification
 
 After installation, verify everything works:
 

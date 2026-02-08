@@ -51,7 +51,7 @@ pip install -r ../requirements_voice.txt  # Existing voice dependencies
 
 The backend reuses your existing trained models:
 - `scripts/voice/stt.py` - DistilWhisper
-- `scripts/voice/tts.py` - pyttsx3/Parler-TTS
+- `scripts/voice/tts.py` - CosyVoice 0.5B (Emotion-aware)
 - `scripts/emotion/text_emotion.py` - DistilRoBERTa
 - `scripts/emotion/speech_emotion.py` - Speech emotion detector
 - `scripts/emotion/fusion.py` - Emotion fusion

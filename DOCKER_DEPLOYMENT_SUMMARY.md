@@ -14,7 +14,7 @@
 #### 1. **Backend Dockerization**
 - Created `Dockerfile.backend` with Python 3.12
 - Installed ML dependencies (PyTorch, Transformers, Unsloth)
-- Added eSpeak/eSpeak-ng for TTS
+- Added CosyVoice for TTS
 - Configured GPU support (NVIDIA runtime)
 
 #### 2. **Frontend Dockerization**
@@ -55,7 +55,7 @@
 │  │   Port 2000    │      │    Port 2323                │  │
 │  │                │      │                             │  │
 │  │  - React SPA   │      │  - STT (Whisper)            │  │
-│  │  - API Proxy   │      │  - TTS (pyttsx3)            │  │
+│  │  - API Proxy   │      │  - TTS (CosyVoice)            │  │
 │  │  - WebSocket   │      │  - LLM (Qwen 1.5B + LoRA)   │  │
 │  └────────────────┘      │  - Emotion Detection        │  │
 │                          └─────────────┬───────────────┘  │
@@ -134,7 +134,7 @@ curl http://localhost:2323/api/health
 ### Models Loaded
 
 1. **STT**: distil-whisper/distil-medium.en (GPU)
-2. **TTS**: pyttsx3 with eSpeak
+2. **TTS**: CosyVoice 0.5B (Emotion-aware)
 3. **Emotion (Text)**: j-hartmann/emotion-english-distilroberta-base
 4. **LLM**: Qwen2.5-1.5B-Instruct + ClarityMentor LoRA
 

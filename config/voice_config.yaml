@@ -25,8 +25,8 @@ models:
     model_name: "j-hartmann/emotion-english-distilroberta-base"
 
   tts:
-    model_name: "parler-tts/parler-tts-mini-expresso"
-    voice_description: "A calm, thoughtful male voice speaks clearly"
+    model_name: "FunAudioLLM/CosyVoice2-0.5B"
+    instruct_text: "Speak in a calm, warm, and friendly tone like a supportive mentor."
 
 memory:
   aggressive_cleanup: true

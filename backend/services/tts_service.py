@@ -45,7 +45,7 @@ class TTSService:
                 return b""
 
             # Run synthesis in thread pool to avoid blocking
-            # (pyttsx3 may have I/O operations)
+            # (Model inference is CPU/GPU intensive)
             loop = asyncio.get_event_loop()
             audio_bytes = await loop.run_in_executor(
                 None, self._synthesize_blocking, text, emotion
@@ -69,13 +69,20 @@ class TTSService:
         """
         try:
             import numpy as np
-            from backend.core.audio_utils import array_to_bytes
+            from backend.core.audio_utils import array_to_bytes, resample_audio
 
             # Call the underlying model's synthesize method (returns numpy array)
             audio_array = self.model.synthesize(text, emotion)
 
             # Convert numpy array to bytes
             if isinstance(audio_array, np.ndarray) and len(audio_array) > 0:
+                # Get model sample rate (default to 22050 for CosyVoice if not set)
+                model_sr = getattr(self.model, "sample_rate", 22050)
+
+                # Resample to 16000Hz (standard for our frontend)
+                if model_sr != 16000:
+                    audio_array = resample_audio(audio_array, model_sr, 16000)
+
                 return array_to_bytes(audio_array)
             else:
                 return b""

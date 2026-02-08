@@ -42,8 +42,8 @@ while True:
 3. **STT** → Transcribes to text (distil-whisper on GPU)
 4. **Emotion** → Detects emotion from audio + text
 5. **LLM** → Generates empathetic response (Qwen 1.5B + LoRA)
-6. **TTS** → Synthesizes speech (pyttsx3 with eSpeak)
-7. **Backend** → Sends audio back to browser
+6. **TTS** → Synthesizes speech (CosyVoice 0.5B with emotion control)
+7. **Backend** → Resamples audio to 16kHz and sends bytes back to browser
 8. **Browser** → Plays audio response
 
 ## Testing Voice Mode
@@ -130,7 +130,7 @@ Backend WebSocket Handler
 │ 2. STT (Whisper GPU)    │
 │ 3. Emotion Detection    │
 │ 4. LLM Response         │
-│ 5. TTS (eSpeak)         │
+│ 5. TTS (CosyVoice)      │
 │ 6. Send audio bytes     │
 └─────────────────────────┘
 ```

@@ -2,6 +2,29 @@
 
 import numpy as np
 import io
+import librosa
+
+
+def resample_audio(audio_array: np.ndarray, orig_sr: int, target_sr: int = 16000) -> np.ndarray:
+    """Resample audio array to target sample rate.
+
+    Args:
+        audio_array: Audio samples (float32)
+        orig_sr: Original sample rate
+        target_sr: Target sample rate (default 16000)
+
+    Returns:
+        Resampled audio array
+    """
+    if orig_sr == target_sr or len(audio_array) == 0:
+        return audio_array
+
+    try:
+        # librosa.resample works well for float32 arrays
+        return librosa.resample(y=audio_array, orig_sr=orig_sr, target_sr=target_sr)
+    except Exception as e:
+        print(f"Resampling error: {e}")
+        return audio_array
 
 
 def bytes_to_array(audio_bytes: bytes, sample_rate: int = 16000) -> np.ndarray:
