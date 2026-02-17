@@ -25,7 +25,7 @@ models:
     model_name: "j-hartmann/emotion-english-distilroberta-base"
 
   tts:
-    model_name: "FunAudioLLM/CosyVoice2-0.5B"
+    model_name: "iic/CosyVoice-300M"
     instruct_text: "Speak in a calm, warm, and friendly tone like a supportive mentor."
 
 memory:
