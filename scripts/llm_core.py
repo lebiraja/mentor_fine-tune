@@ -46,14 +46,24 @@ def load_claritymentor_model(model_path: Path, max_seq_length: int = 2048):
         from transformers import AutoModelForCausalLM, AutoTokenizer
         from peft import PeftModel
 
-        print(f"Loading base model: {base_model_id}...")
+        has_gpu = torch.cuda.is_available()
+        print(f"Loading base model: {base_model_id}... (GPU: {has_gpu})")
         tokenizer = AutoTokenizer.from_pretrained(base_model_id)
-        model = AutoModelForCausalLM.from_pretrained(
-            base_model_id,
-            device_map="auto",
-            torch_dtype=torch.bfloat16,
-            load_in_4bit=True,
-        )
+
+        if has_gpu:
+            model = AutoModelForCausalLM.from_pretrained(
+                base_model_id,
+                device_map="auto",
+                torch_dtype=torch.bfloat16,
+                load_in_4bit=True,
+            )
+        else:
+            print("No GPU available, loading in float32 on CPU...")
+            model = AutoModelForCausalLM.from_pretrained(
+                base_model_id,
+                device_map="cpu",
+                torch_dtype=torch.float32,
+            )
 
         print(f"Loading LoRA adapter from: {model_path}...")
         # Load from local directory - check if adapter_config.json exists

@@ -4,8 +4,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.backend
+      network: host
     container_name: claritymentor-backend
-    runtime: nvidia
     ports:
       - "2323:2323"
     dns:
@@ -34,19 +34,24 @@ services:
       - ./logs:/app/logs
       # Mount HuggingFace cache (read-write for downloads)
       - ~/.cache/huggingface:/root/.cache/huggingface
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
+      # Mount StyleTTS 2 model cache (cached_path library)
+      - styletts2-cache:/root/.cache/cached_path
+      # Mount NLTK data
+      - nltk-data:/root/nltk_data
+    # Uncomment after installing nvidia-container-toolkit:
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:2323/api/health"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 120s
+      start_period: 600s
     networks:
       - claritymentor-network
     restart: unless-stopped
@@ -96,4 +101,8 @@ networks:
 
 volumes:
   redis-data:
+    driver: local
+  styletts2-cache:
+    driver: local
+  nltk-data:
     driver: local

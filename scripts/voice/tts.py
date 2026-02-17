@@ -1,13 +1,12 @@
-"""Text-to-Speech using CosyVoice3 with emotion control."""
+"""Text-to-Speech using StyleTTS 2 with emotion control."""
 
 import numpy as np
 import torch
 from typing import Optional, Dict, Any
-import os
 
 
 class EmotionalTTS:
-    """Generate speech from text with emotion control using CosyVoice3."""
+    """Generate speech from text with emotion control using StyleTTS 2."""
 
     def __init__(self, config: dict):
         """
@@ -15,17 +14,18 @@ class EmotionalTTS:
 
         Args:
             config: Dictionary with TTS configuration
-                - model_name: ModelScope/HuggingFace model ID
-                - voice_description: Default voice description/preset
+                - diffusion_steps: Number of diffusion steps (quality vs speed)
+                - embedding_scale: Emotional intensity of synthesis
+                - alpha: Timbre control parameter
+                - beta: Prosody control parameter
         """
-        self.model_name = config.get("model_name", "FunAudioLLM/CosyVoice2-0.5B")
-        self.instruct_text = config.get(
-            "instruct_text",
-            "Speak in a calm, warm, and friendly tone."
-        )
+        self.diffusion_steps = config.get("diffusion_steps", 5)
+        self.embedding_scale = config.get("embedding_scale", 1)
+        self.alpha = config.get("alpha", 0.3)
+        self.beta = config.get("beta", 0.7)
 
         self.model = None
-        self.sample_rate = 24000  # CosyVoice3 uses 24000Hz
+        self.sample_rate = 24000  # StyleTTS 2 native sample rate
 
     def load(self) -> None:
         """Load TTS model to GPU."""
@@ -33,41 +33,14 @@ class EmotionalTTS:
             return
 
         try:
-            print(f"Loading TTS model: {self.model_name}")
+            print("Loading TTS model: StyleTTS 2 (LibriTTS)")
+            from styletts2 import tts
 
-            # CosyVoice3 for Fun-CosyVoice3-0.5B models, CosyVoice2 for CosyVoice2-0.5B
-            if "CosyVoice3" in self.model_name:
-                from cosyvoice.cli.cosyvoice import CosyVoice3
-                ModelClass = CosyVoice3
-            elif "CosyVoice2" in self.model_name:
-                from cosyvoice.cli.cosyvoice import CosyVoice2
-                ModelClass = CosyVoice2
-            else:
-                from cosyvoice.cli.cosyvoice import CosyVoice
-                ModelClass = CosyVoice
-
-            # CosyVoice handles model download internally via snapshot_download
-            self.model = ModelClass(self.model_name)
-
-            # Get sample rate from model
-            if hasattr(self.model, 'sample_rate'):
-                self.sample_rate = self.model.sample_rate
-
-            # List available speakers
-            if hasattr(self.model, 'list_available_spks'):
-                spks = self.model.list_available_spks()
-                print(f"Available speakers: {spks}")
-                if spks:
-                    self.default_spk = spks[0]
-                else:
-                    self.default_spk = None
-            else:
-                self.default_spk = None
-
-            print(f"✓ CosyVoice TTS model loaded successfully (sample_rate={self.sample_rate})")
+            self.model = tts.StyleTTS2()
+            print(f"StyleTTS 2 loaded (sample_rate={self.sample_rate})")
 
         except Exception as e:
-            print(f"Error loading CosyVoice TTS model: {e}")
+            print(f"Error loading StyleTTS 2 model: {e}")
             import traceback
             traceback.print_exc()
             raise
@@ -76,11 +49,14 @@ class EmotionalTTS:
         self, text: str, emotion_context: Optional[Dict[str, Any]] = None
     ) -> np.ndarray:
         """
-        Generate speech from text using CosyVoice.
+        Generate speech from text using StyleTTS 2.
+
+        StyleTTS 2 infers prosody and emotion from the text content itself.
+        The embedding_scale parameter controls emotional intensity.
 
         Args:
             text: Text to synthesize
-            emotion_context: Optional emotion context
+            emotion_context: Optional emotion context (used to adjust embedding_scale)
 
         Returns:
             Audio array (1D numpy array of float32)
@@ -92,64 +68,41 @@ class EmotionalTTS:
             return np.array([], dtype=np.float32)
 
         try:
-            # Get instruction based on emotion
-            instruction = self._get_voice_instruction(emotion_context)
+            # Adjust embedding scale based on emotion intensity
+            embedding_scale = self._get_embedding_scale(emotion_context)
 
-            audio_chunks = []
-
-            # Try different inference methods based on what's available
-            if hasattr(self.model, 'inference_instruct2'):
-                # CosyVoice3 uses inference_instruct2 for text-only synthesis
-                # inference_instruct2(tts_text, instruct_text, prompt_wav, zero_shot_spk_id='', ...)
-                # For text-only, we can pass None for prompt_wav
-                for result in self.model.inference_instruct2(
+            # StyleTTS 2 inference() handles up to ~420 chars,
+            # long_inference() for longer text
+            if len(text) > 400:
+                audio = self.model.long_inference(
                     text,
-                    instruction,
-                    prompt_wav=None,
-                    stream=False,
-                    speed=1.0
-                ):
-                    if 'tts_speech' in result:
-                        audio_chunks.append(result['tts_speech'].cpu().numpy())
-
-            elif hasattr(self.model, 'inference_sft') and self.default_spk:
-                # Use SFT inference with a default speaker
-                for result in self.model.inference_sft(
-                    text,
-                    self.default_spk,
-                    stream=False,
-                    speed=1.0
-                ):
-                    if 'tts_speech' in result:
-                        audio_chunks.append(result['tts_speech'].cpu().numpy())
-
-            elif hasattr(self.model, 'inference_instruct') and self.default_spk:
-                # inference_instruct(tts_text, spk_id, instruct_text, ...)
-                for result in self.model.inference_instruct(
-                    text,
-                    self.default_spk,
-                    instruction,
-                    stream=False,
-                    speed=1.0
-                ):
-                    if 'tts_speech' in result:
-                        audio_chunks.append(result['tts_speech'].cpu().numpy())
-
+                    output_sample_rate=self.sample_rate,
+                    alpha=self.alpha,
+                    beta=self.beta,
+                    diffusion_steps=self.diffusion_steps,
+                    embedding_scale=embedding_scale,
+                )
             else:
-                print("Warning: No suitable inference method found")
+                audio = self.model.inference(
+                    text,
+                    output_sample_rate=self.sample_rate,
+                    alpha=self.alpha,
+                    beta=self.beta,
+                    diffusion_steps=self.diffusion_steps,
+                    embedding_scale=embedding_scale,
+                )
+
+            if audio is None or len(audio) == 0:
                 return np.array([], dtype=np.float32)
 
-            if not audio_chunks:
-                return np.array([], dtype=np.float32)
+            # Ensure 1D float32 array
+            if isinstance(audio, torch.Tensor):
+                audio = audio.cpu().numpy()
 
-            # Concatenate chunks and flatten to 1D
-            full_audio = np.concatenate(audio_chunks)
+            if audio.ndim > 1:
+                audio = audio.squeeze()
 
-            # Ensure 1D array
-            if full_audio.ndim > 1:
-                full_audio = full_audio.squeeze()
-
-            return full_audio.astype(np.float32)
+            return audio.astype(np.float32)
 
         except Exception as e:
             print(f"Error during TTS synthesis: {e}")
@@ -157,32 +110,34 @@ class EmotionalTTS:
             traceback.print_exc()
             return np.array([], dtype=np.float32)
 
-    def _get_voice_instruction(
+    def _get_embedding_scale(
         self, emotion_context: Optional[Dict[str, Any]] = None
-    ) -> str:
+    ) -> float:
         """
-        Get voice instruction/style based on emotion context.
+        Get embedding scale based on emotion context.
+
+        Higher embedding_scale = more emotionally expressive speech.
         """
-        base_instruction = self.instruct_text
+        base_scale = self.embedding_scale
 
         if emotion_context is None:
-            return base_instruction
+            return base_scale
 
         emotion = emotion_context.get("primary_emotion", "neutral")
 
-        # Map emotions to instruction modifiers
-        emotion_instructions = {
-            "anger": "Speak with a slightly frustrated but controlled tone.",
-            "sadness": "Speak with a gentle, empathetic, and comforting tone.",
-            "fear": "Speak with a calm and reassuring tone to help ease anxiety.",
-            "joy": "Speak with a warm, cheerful, and encouraging tone.",
-            "confused": "Speak clearly and patiently, offering helpful guidance.",
-            "neutral": base_instruction,
-            "surprise": "Speak with engaged interest and curiosity.",
-            "disgust": "Speak with a calm, understanding, and non-judgmental tone.",
+        # Emotions that benefit from higher expressiveness
+        emotion_scales = {
+            "anger": 1.5,
+            "sadness": 1.2,
+            "fear": 1.2,
+            "joy": 1.5,
+            "confused": 1.0,
+            "neutral": 1.0,
+            "surprise": 1.3,
+            "disgust": 1.2,
         }
 
-        return emotion_instructions.get(emotion, base_instruction)
+        return emotion_scales.get(emotion, base_scale)
 
     def unload(self) -> None:
         """Unload model to free VRAM."""
@@ -190,4 +145,4 @@ class EmotionalTTS:
             self.model = None
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
-            print("✓ TTS model unloaded")
+            print("TTS model unloaded")

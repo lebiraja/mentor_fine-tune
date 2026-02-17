@@ -11,4 +11,13 @@ pydantic-settings>=2.1.0
 # Async support
 asyncio>=3.4.3
 
-# Note: All ML models already in requirements.txt and requirements_voice.txt
+# LLM inference (LoRA adapter loading)
+transformers>=4.40.0
+peft>=0.10.0
+accelerate>=0.30.0
+bitsandbytes>=0.43.0
+safetensors>=0.4.0
+sentencepiece>=0.2.0
+
+# Config
+pyyaml>=6.0.0

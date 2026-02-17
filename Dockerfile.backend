@@ -23,8 +23,6 @@ RUN apt-get update && apt-get install -y \
     libsndfile1-dev \
     libportaudio2 \
     portaudio19-dev \
-    espeak \
-    espeak-ng \
     sox \
     && rm -rf /var/lib/apt/lists/*
 
@@ -35,36 +33,22 @@ RUN update-alternatives --install /usr/bin/python python /usr/bin/python3.10 1 \
 # Upgrade pip and install build dependencies
 RUN pip install --no-cache-dir --upgrade pip setuptools wheel
 
-# Clone CosyVoice FIRST (so we can install its requirements)
-RUN git clone --recursive https://github.com/FunAudioLLM/CosyVoice.git /app/CosyVoice
-
-# Install Matcha-TTS submodule first
-WORKDIR /app/CosyVoice/third_party/Matcha-TTS
-RUN pip install --no-cache-dir -e .
-
-# Install CosyVoice's requirements (these are the tested/pinned versions)
-WORKDIR /app/CosyVoice
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Fix torch/torchvision compatibility - CosyVoice uses torch 2.3.1, need matching torchvision
-RUN pip install --no-cache-dir torchvision==0.18.1 torchaudio==2.3.1
-
-# Go back to app directory
-WORKDIR /app
+# Install PyTorch with CUDA support (2.5.1 needed for peft 0.18+ / transformers 4.45+)
+RUN pip install --no-cache-dir torch==2.5.1 torchaudio==2.5.1 --index-url https://download.pytorch.org/whl/cu121
 
 # Copy our requirements files
 COPY requirements_backend.txt requirements_voice.txt ./
 
-# Install our backend requirements (FastAPI, etc.)
+# Install backend requirements (FastAPI, etc.)
 RUN pip install --no-cache-dir -r requirements_backend.txt
 
-# Install additional voice requirements not in CosyVoice (speechbrain, webrtcvad, sounddevice)
-# Note: Most voice deps are already in CosyVoice requirements
-RUN pip install --no-cache-dir speechbrain>=1.0.0 webrtcvad>=2.0.10 sounddevice>=0.5.0 soundfile>=0.12.0 librosa>=0.10.0
+# Install voice requirements (StyleTTS 2, STT, emotion detection, etc.)
+RUN pip install --no-cache-dir -r requirements_voice.txt
 
-# Add CosyVoice to python path
-ENV PYTHONPATH="${PYTHONPATH}:/app/CosyVoice"
-ENV PRETRAINED_MODEL_DIR="/app/CosyVoice/pretrained_models"
+# Force upgrade packages after styletts2 (which pins old versions)
+# peft 0.18+ needed to load the LoRA adapter
+# transformers <4.50 to avoid torch 2.6 requirement for torch.load
+RUN pip install --no-cache-dir --upgrade "accelerate>=1.2.0" "peft>=0.18.0" "transformers>=4.46.0,<4.50.0"
 
 # Copy backend code
 COPY backend/ ./backend/

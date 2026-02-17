@@ -78,7 +78,7 @@ class ModelService:
 
     async def _load_tts(self) -> None:
         """Load Text-to-Speech model."""
-        print("[2/5] Loading TTS model (CosyVoice)...")
+        print("[2/5] Loading TTS model (StyleTTS 2)...")
         try:
             from scripts.voice.tts import EmotionalTTS
 
