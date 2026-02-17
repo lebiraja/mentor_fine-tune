@@ -1,5 +1,3 @@
-version: '3.8'
-
 # CPU-only version (for systems without NVIDIA GPU)
 # Use this if you don't have GPU or want to test without GPU
 

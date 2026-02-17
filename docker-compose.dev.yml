@@ -1,5 +1,3 @@
-version: '3.8'
-
 # Development override for docker-compose.yml
 # Run with: docker-compose -f docker-compose.yml -f docker-compose.dev.yml up -d
 
@@ -17,6 +15,13 @@ services:
     tty: true
 
   frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
     volumes:
-      - ./sample-ui:/app
-    # Watch for changes in development
+      # Mount source code for development hot reload
+      - ./frontend/src:/app/src:ro
+      - ./frontend/public:/app/public:ro
+    environment:
+      - NODE_ENV=development
+    # Nginx serves the built files - for live dev use vite dev server separately
