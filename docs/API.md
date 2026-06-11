@@ -1,6 +1,6 @@
 # API
 
-Base URL: `http://localhost:2000` (nginx) or `http://127.0.0.1:2323` (backend direct).
+Base URL: `http://localhost:2000` (nginx) or `http://127.0.0.1:2324` (backend direct).
 
 ## REST
 

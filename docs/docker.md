@@ -17,7 +17,7 @@ Open http://localhost:2000. After `make models`, no network is needed at runtime
 | Service | Container | Host port | Notes |
 |---|---|---|---|
 | llm | clarity-llm | 127.0.0.1:2380 | llama.cpp server, GPU, loads the GGUF in ~30–60 s |
-| backend | clarity-backend | 127.0.0.1:2323 | waits for llm healthcheck; ONNX engines load in ~30 s |
+| backend | clarity-backend |  127.0.0.1:2324 | waits for llm healthcheck; ONNX engines load in ~30 s |
 | frontend | clarity-frontend | 2000 | nginx; the only port meant for the browser |
 
 Volumes: `./models/*` mounted read-only; `clarity-data` holds the SQLite db.

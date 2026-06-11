@@ -44,7 +44,7 @@ services:
       - ./models/silero:/app/models/silero:ro
       - clarity-data:/app/data
     ports:
-      - "127.0.0.1:2323:2323"
+      - "127.0.0.1:2324:2323"  # host 2323 is taken by bedrock-proxy
     depends_on:
       llm:
         condition: service_healthy
