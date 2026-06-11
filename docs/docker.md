@@ -31,6 +31,12 @@ make dev           # vite dev server on :5173, proxies to a running backend
 make clean         # down + remove volumes
 ```
 
+## End-to-end voice check (no microphone needed)
+Speaks a synthesized question at the live stack and asserts on transcript, reply, and audio:
+```bash
+docker compose exec -e PYTHONPATH=/app backend python tests/e2e_voice_client.py
+```
+
 ## Troubleshooting
 - **llm unhealthy** — check `docker compose logs llm`; usually a missing/incomplete GGUF (`make models` resumes).
 - **GPU not found** — `nvidia-ctk runtime configure --runtime=docker && sudo systemctl restart docker`.

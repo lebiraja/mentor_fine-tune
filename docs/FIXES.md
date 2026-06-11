@@ -2,6 +2,12 @@
 
 Running log of significant fixes and the reasoning behind them.
 
+## 2026-06-11 — repo cleanup after v2 verification
+
+- Removed the v1 training pipeline (`scripts/training/`, `requirements-training.txt`), dataset artifacts (`data/`, `evaluation/`, `reddit_dataset_170/`) and dev caches from the working tree. All of it remains in git history on `v2-rebuild` if ever needed.
+- Rewrote `.gitignore` (secrets first: `.env` and variants never committable) and `.dockerignore` (build contexts no longer ship models/docs/caches).
+- Silero VAD fix (see below) shipped the same day: the raw ONNX graph needs a 64-sample rolling context prepended to every 512-sample frame, i.e. input `[1, 576]` — without it speech probability sits near zero.
+
 ## 2026-06-11 — v2 rebuild (branch `v2-rebuild`)
 
 The v1 stack never worked end-to-end. Root causes found in the audit, all addressed by the rebuild rather than patched:

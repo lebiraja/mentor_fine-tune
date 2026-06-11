@@ -7,7 +7,7 @@ ClarityMentor v2 is a fully local voice companion: you talk, it talks back. No d
 | Service | Image | Hardware | Role |
 |---|---|---|---|
 | `llm` | `ghcr.io/ggml-org/llama.cpp:server-cuda` | **GPU** (~3.5 GB VRAM) | Qwen3-4B-Instruct-2507 Q4_K_M, OpenAI-compatible streaming API on `:8080` (host: `127.0.0.1:2380`) |
-| `backend` | `python:3.12-slim` build | CPU | FastAPI; VAD + STT + TTS + pipeline + SQLite. `:2323` (host: `127.0.0.1:2323`) |
+| `backend` | `python:3.12-slim` build | CPU | FastAPI; VAD + STT + TTS + pipeline + SQLite. `:2323` (host: `127.0.0.1:2324`) |
 | `frontend` | nginx | — | Built React app; proxies `/api` and `/ws` to backend. `:2000` |
 
 Only the `llm` container touches the GPU. The backend runs all audio models on CPU via ONNX:

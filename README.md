@@ -16,6 +16,6 @@ make up
 
 Docs: [architecture](docs/architecture.md) · [API](docs/API.md) · [docker](docs/docker.md) · [fixes](docs/FIXES.md)
 
-Sized for a 6 GB-VRAM laptop GPU (RTX 4050): ~3.5 GB VRAM for the LLM, audio models on CPU, ~2–2.5 s to first reply audio.
+Sized for a 6 GB-VRAM laptop GPU (RTX 4050): ~3.5 GB VRAM for the LLM, audio models on CPU, ~1.3–2.5 s to first reply audio.
 
-The old fine-tuning pipeline (datasets, QLoRA training) is archived under `scripts/training/`.
+The v1 fine-tuning pipeline (datasets, QLoRA training) was removed from the working tree — recover it from git history (`git log --follow -- scripts/training`) if ever needed.
