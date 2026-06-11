@@ -1,0 +1,31 @@
+# Core ML/Training
+torch>=2.9.0
+transformers>=4.57.0
+datasets>=4.3.0
+peft>=0.18.0
+trl>=0.24.0
+accelerate>=1.12.0
+bitsandbytes>=0.49.0
+safetensors>=0.7.0
+
+# Unsloth (for efficient fine-tuning)
+unsloth>=2026.1.0
+unsloth_zoo>=2026.1.0
+
+# Data processing
+pyarrow>=22.0.0
+pandas>=2.3.0
+
+# Tokenization
+sentencepiece>=0.2.0
+tokenizers>=0.22.0
+
+# Config and utilities
+pyyaml>=6.0.0
+
+# Safety filtering
+detoxify>=0.5.0
+
+# HTTP/API
+requests>=2.32.0
+huggingface-hub>=0.36.0

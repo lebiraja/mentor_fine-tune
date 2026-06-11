@@ -1,108 +1,87 @@
 services:
-  # Backend FastAPI service
+  llm:
+    image: ghcr.io/ggml-org/llama.cpp:server-cuda
+    container_name: clarity-llm
+    command: >
+      -m /models/llm/Qwen3-4B-Instruct-2507-Q4_K_M.gguf
+      --host 0.0.0.0 --port 8080
+      --ctx-size 8192
+      --n-gpu-layers 999
+      --jinja
+    env_file: .env
+    volumes:
+      - ./models/llm:/models/llm:ro
+    ports:
+      - "127.0.0.1:2380:8080"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 90s
+    networks:
+      - clarity
+    restart: unless-stopped
+
   backend:
     build:
       context: .
       dockerfile: Dockerfile.backend
-      network: host
-    container_name: claritymentor-backend
-    ports:
-      - "2323:2323"
-    dns:
-      - 8.8.8.8
-      - 8.8.4.4
+    container_name: clarity-backend
+    env_file: .env
     environment:
-      - HOST=0.0.0.0
-      - PORT=2323
-      - DEBUG=False
-      - PYTHONUNBUFFERED=1
-      - NVIDIA_VISIBLE_DEVICES=all
-      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
-      - HF_HOME=/root/.cache/huggingface
+      - LLM_BASE_URL=http://llm:8080/v1
     volumes:
-      # Mount the trained model
-      - ./models/claritymentor-lora/final:/app/models/claritymentor-lora/final:ro
-      # Mount config files
-      - ./config:/app/config:ro
-      # Mount backend code for development (hot reloading)
-      - ./backend:/app/backend:ro
-      # Mount scripts for development (hot reloading)
-      - ./scripts:/app/scripts:ro
-      # Mount data directory (read-write for processing)
-      - ./data:/app/data
-      # Mount logs directory
-      - ./logs:/app/logs
-      # Mount HuggingFace cache (read-write for downloads)
-      - ~/.cache/huggingface:/root/.cache/huggingface
-      # Mount StyleTTS 2 model cache (cached_path library)
-      - styletts2-cache:/root/.cache/cached_path
-      # Mount NLTK data
-      - nltk-data:/root/nltk_data
-    # Uncomment after installing nvidia-container-toolkit:
-    # deploy:
-    #   resources:
-    #     reservations:
-    #       devices:
-    #         - driver: nvidia
-    #           count: 1
-    #           capabilities: [gpu]
+      - ./models/parakeet-v3:/app/models/parakeet-v3:ro
+      - ./models/kokoro:/app/models/kokoro:ro
+      - ./models/silero:/app/models/silero:ro
+      - clarity-data:/app/data
+    ports:
+      - "127.0.0.1:2323:2323"
+    depends_on:
+      llm:
+        condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:2323/api/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 600s
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:2323/api/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 90s
     networks:
-      - claritymentor-network
+      - clarity
     restart: unless-stopped
 
-  # Frontend React app with Nginx
   frontend:
     build:
       context: .
       dockerfile: Dockerfile.frontend
-    container_name: claritymentor-frontend
+    container_name: clarity-frontend
     ports:
       - "2000:2000"
     depends_on:
       backend:
         condition: service_healthy
-    networks:
-      - claritymentor-network
-    restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:2000/"]
       interval: 30s
       timeout: 3s
       retries: 3
       start_period: 10s
-
-  # Optional: Redis service for caching/sessions
-  cache:
-    image: redis:7-alpine
-    container_name: claritymentor-cache
-    ports:
-      - "2999:6379"
-    volumes:
-      - redis-data:/data
     networks:
-      - claritymentor-network
+      - clarity
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    command: redis-server --appendonly yes
 
 networks:
-  claritymentor-network:
+  clarity:
     driver: bridge
 
 volumes:
-  redis-data:
-    driver: local
-  styletts2-cache:
-    driver: local
-  nltk-data:
+  clarity-data:
     driver: local

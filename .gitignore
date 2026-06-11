@@ -89,3 +89,14 @@ kaggle_datasets/
 *.temp
 .~*
 .env
+
+# v2 model weights (downloaded via make models)
+models/**/*.gguf
+models/**/*.onnx
+models/**/*.bin
+models/**/vocab.txt
+models/**/config.json
+models/**/*.data
+
+# Runtime db
+*.db
