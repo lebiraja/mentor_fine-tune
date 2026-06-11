@@ -7,7 +7,8 @@ import numpy as np
 import onnxruntime as ort
 
 SAMPLE_RATE = 16000
-FRAME_SAMPLES = 512  # 32 ms — the only window size Silero v5 supports at 16 kHz
+FRAME_SAMPLES = 512  # 32 ms — the only window size Silero supports at 16 kHz
+CONTEXT_SAMPLES = 64  # Silero prepends the tail of the previous frame to each call
 
 
 class SileroVAD:
@@ -24,17 +25,21 @@ class SileroVAD:
 
     def reset(self) -> None:
         self._state = np.zeros((2, 1, 128), dtype=np.float32)
+        self._context = np.zeros(CONTEXT_SAMPLES, dtype=np.float32)
 
     def prob(self, frame: np.ndarray) -> float:
         """Speech probability for one 512-sample float32 frame."""
+        frame = frame.astype(np.float32, copy=False)
+        with_context = np.concatenate([self._context, frame])
         out, self._state = self.session.run(
             None,
             {
-                "input": frame.reshape(1, -1),
+                "input": with_context.reshape(1, -1),
                 "state": self._state,
                 "sr": np.array(SAMPLE_RATE, dtype=np.int64),
             },
         )
+        self._context = frame[-CONTEXT_SAMPLES:]
         return float(out[0][0])
 
 
