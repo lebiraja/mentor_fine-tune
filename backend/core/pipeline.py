@@ -112,17 +112,25 @@ class ConversationPipeline:
         assert self.session_id is not None
         loop = asyncio.get_running_loop()
         assistant_text = ""
+        detected_lang = "en"
         try:
             # 1. Transcribe (voice turns only)
             if text is None:
                 await self.send_json({"type": "state", "state": "transcribing"})
                 t0 = time.perf_counter()
-                text = await loop.run_in_executor(None, self.stt.transcribe, audio)
+                stt_result = await loop.run_in_executor(None, self.stt.transcribe, audio)
                 self.stats.record("stt_ms", (time.perf_counter() - t0) * 1000)
+                text = stt_result.text
+                detected_lang = stt_result.language
                 if not text:
                     await self.send_json({"type": "state", "state": "listening"})
                     return
-                await self.send_json({"type": "user_transcript", "text": text})
+                await self.send_json({
+                    "type": "user_transcript",
+                    "text": text,
+                    "language": detected_lang,
+                    "language_probability": stt_result.language_probability,
+                })
 
             await self.db.add_message(self.session_id, "user", text)
 
@@ -139,7 +147,9 @@ class ConversationPipeline:
 
             async def speak(sentence: str) -> None:
                 nonlocal speaking, t_first_audio
-                pcm = await loop.run_in_executor(None, self.tts.synthesize, sentence)
+                pcm = await loop.run_in_executor(
+                    None, self.tts.synthesize, sentence, detected_lang
+                )
                 if not pcm:
                     return
                 if not speaking:

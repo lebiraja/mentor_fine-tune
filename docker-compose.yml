@@ -39,12 +39,20 @@ services:
     environment:
       - LLM_BASE_URL=http://llm:8080/v1
     volumes:
-      - ./models/parakeet-v3:/app/models/parakeet-v3:ro
       - ./models/kokoro:/app/models/kokoro:ro
       - ./models/silero:/app/models/silero:ro
+      - ./models/piper-tamil:/app/models/piper-tamil:ro
+      - whisper-cache:/root/.cache/huggingface
       - clarity-data:/app/data
     ports:
       - "127.0.0.1:2324:2323"  # host 2323 is taken by bedrock-proxy
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
     depends_on:
       llm:
         condition: service_healthy
@@ -53,7 +61,7 @@ services:
       interval: 15s
       timeout: 5s
       retries: 5
-      start_period: 90s
+      start_period: 180s
     networks:
       - clarity
     restart: unless-stopped
@@ -84,4 +92,6 @@ networks:
 
 volumes:
   clarity-data:
+    driver: local
+  whisper-cache:
     driver: local

@@ -27,18 +27,30 @@ async def lifespan(app: FastAPI):
         temperature=settings.LLM_TEMPERATURE,
     )
 
-    # ONNX engines: a few hundred MB of RAM, ~20s load, CPU-only
-    print("Loading STT (Parakeet TDT 0.6B v3 int8)...")
-    from backend.core.stt import ParakeetSTT
+    print("Loading STT (Whisper %s, %s, %s)..." % (settings.STT_MODEL, settings.STT_DEVICE, settings.STT_COMPUTE_TYPE))
+    from backend.core.stt import WhisperSTT
 
-    app.state.stt = ParakeetSTT(settings.parakeet_dir)
+    app.state.stt = WhisperSTT(
+        model_size=settings.STT_MODEL,
+        device=settings.STT_DEVICE,
+        compute_type=settings.STT_COMPUTE_TYPE,
+    )
 
-    print("Loading TTS (Kokoro-82M, voice=%s)..." % settings.TTS_VOICE)
-    from backend.core.tts import KokoroTTS
+    print("Loading TTS — English (Kokoro-82M, voice=%s)..." % settings.TTS_VOICE)
+    from backend.core.tts import KokoroTTS, PiperTTS, TTSRouter
 
-    app.state.tts = KokoroTTS(
+    kokoro = KokoroTTS(
         settings.kokoro_model, settings.kokoro_voices, settings.TTS_VOICE, settings.TTS_SPEED
     )
+
+    piper_tamil = None
+    if settings.PIPER_TAMIL_ENABLED and settings.piper_tamil_model.exists():
+        print("Loading TTS — Tamil (Piper)...")
+        piper_tamil = PiperTTS(settings.piper_tamil_model, settings.piper_tamil_config)
+    elif settings.PIPER_TAMIL_ENABLED:
+        print("WARNING: Piper Tamil model not found at %s — Tamil TTS disabled" % settings.piper_tamil_model)
+
+    app.state.tts = TTSRouter(kokoro=kokoro, piper_tamil=piper_tamil)
 
     from backend.core.vad import SileroVAD
 

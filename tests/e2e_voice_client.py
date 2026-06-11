@@ -18,7 +18,7 @@ async def main() -> None:
 
     print("Synthesizing the 'user' question...")
     tts = KokoroTTS(settings.kokoro_model, settings.kokoro_voices, "af_heart", 1.0)
-    pcm24 = tts.synthesize("I keep putting off things that matter to me. Why do I do that?")
+    pcm24, _ = tts.synthesize("I keep putting off things that matter to me. Why do I do that?")
     a24 = np.frombuffer(pcm24, dtype=np.int16).astype(np.float32) / 32768.0
     idx = (np.arange(int(len(a24) * 2 / 3)) * 1.5).astype(int)
     a16 = a24[idx[idx < len(a24)]]

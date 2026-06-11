@@ -24,9 +24,17 @@ class Settings(BaseSettings):
     # Model file locations (mounted ro in docker)
     MODELS_DIR: Path = BASE_DIR / "models"
 
-    # Voice
+    # STT (faster-whisper)
+    STT_MODEL: str = "large-v3-turbo"
+    STT_DEVICE: str = "cuda"
+    STT_COMPUTE_TYPE: str = "int8"
+
+    # Voice — English (Kokoro)
     TTS_VOICE: str = "af_heart"
     TTS_SPEED: float = 1.0
+
+    # Voice — Tamil (Piper)
+    PIPER_TAMIL_ENABLED: bool = True
 
     # VAD turn-taking
     VAD_THRESHOLD: float = 0.5
@@ -36,8 +44,12 @@ class Settings(BaseSettings):
     DB_PATH: Path = BASE_DIR / "data" / "clarity.db"
 
     @property
-    def parakeet_dir(self) -> Path:
-        return self.MODELS_DIR / "parakeet-v3"
+    def piper_tamil_model(self) -> Path:
+        return self.MODELS_DIR / "piper-tamil" / "ta_IN-female-medium.onnx"
+
+    @property
+    def piper_tamil_config(self) -> Path:
+        return self.MODELS_DIR / "piper-tamil" / "ta_IN-female-medium.onnx.json"
 
     @property
     def kokoro_model(self) -> Path:

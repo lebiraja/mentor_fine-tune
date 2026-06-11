@@ -1,4 +1,4 @@
-# ClarityMentor v2 backend — CPU-only runtime (LLM runs in the llama.cpp container)
+# ClarityMentor v3 backend — GPU-accelerated STT, CPU TTS
 fastapi==0.136.3
 uvicorn[standard]==0.49.0
 websockets==16.0
@@ -7,10 +7,16 @@ pydantic==2.13.4
 pydantic-settings==2.14.1
 aiosqlite==0.22.1
 
-# Inference (all ONNX, CPU)
+# STT (GPU via CTranslate2)
+faster-whisper>=1.1.0
+
+# TTS — English (ONNX, CPU)
 onnxruntime==1.26.0
-onnx-asr==0.11.0
 kokoro-onnx==0.5.0
+
+# TTS — Tamil (Piper, ONNX, CPU)
+piper-tts>=1.2.0
+
 numpy==2.4.6
 
 # Tests (kept in image so `docker compose run --rm backend pytest` works)
