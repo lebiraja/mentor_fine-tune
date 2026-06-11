@@ -1,113 +1,82 @@
-@import "tailwindcss";
-
-@plugin "tailwindcss-animate";
-
-@custom-variant dark (&:where(.dark, .dark *));
+@import 'tailwindcss';
 
 @theme {
-  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
-  --font-display: 'Space Grotesk', system-ui, -apple-system, sans-serif;
+  /* Quiet Room — warm charcoal, amber accent */
+  --color-room: #171310;
+  --color-room-soft: #211c17;
+  --color-room-line: #332b23;
+  --color-ink: #e8e0d4;
+  --color-ink-dim: #9c917f;
+  --color-ink-faint: #5f574a;
+  --color-ember: #d9a05b;
+  --color-ember-soft: #8a6a45;
+
+  --font-sans: 'Inter Variable', system-ui, sans-serif;
+  --font-serif: 'Newsreader Variable', Georgia, serif;
 }
 
-:root {
-  --background: 260 40% 5%; /* cosmic-dark #0f0c29 approx */
-  --foreground: 0 0% 100%; /* starlight */
-
-  --card: 260 40% 5%;
-  --card-foreground: 0 0% 100%;
-
-  --popover: 260 40% 5%;
-  --popover-foreground: 0 0% 100%;
-
-  --primary: 312 100% 50%; /* nebula-pink #ff00cc */
-  --primary-foreground: 0 0% 100%;
-
-  --secondary: 265 40% 28%; /* cosmic-purple #302b63 */
-  --secondary-foreground: 0 0% 100%;
-
-  --muted: 265 40% 20%;
-  --muted-foreground: 265 20% 70%;
-
-  --accent: 312 100% 50%;
-  --accent-foreground: 0 0% 100%;
-
-  --destructive: 0 84.2% 60.2%;
-  --destructive-foreground: 0 0% 98%;
-
-  --border: 265 30% 20%;
-  --input: 265 30% 20%;
-  --ring: 312 100% 50%;
-
-  --radius: 0.75rem;
-
-  /* Glass Tokens */
-  --glass-bg: rgba(255, 255, 255, 0.05);
-  --glass-border: rgba(255, 255, 255, 0.1);
-  --glass-blur: 16px;
+html,
+body,
+#root {
+  height: 100%;
 }
 
-.dark {
-  --background: 260 40% 5%;
-  --foreground: 0 0% 100%;
-
-  --card: 260 40% 5%;
-  --card-foreground: 0 0% 100%;
-
-  --popover: 260 40% 5%;
-  --popover-foreground: 0 0% 100%;
-
-  --primary: 312 100% 50%;
-  --primary-foreground: 0 0% 100%;
-
-  --secondary: 265 40% 28%;
-  --secondary-foreground: 0 0% 100%;
-
-  --muted: 265 40% 20%;
-  --muted-foreground: 265 20% 70%;
-
-  --accent: 312 100% 50%;
-  --accent-foreground: 0 0% 100%;
-
-  --destructive: 0 62.8% 30.6%;
-  --destructive-foreground: 0 0% 98%;
-
-  --border: 265 30% 20%;
-  --input: 265 30% 20%;
-  --ring: 312 100% 50%;
+body {
+  background: var(--color-room);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
 }
 
-@layer base {
-  * {
-    border-color: hsl(var(--border));
-    border-style: solid;
+/* soft vignette so the room has depth without decoration */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse 80% 60% at 50% 35%, transparent 60%, rgb(0 0 0 / 0.35));
+}
+
+::selection {
+  background: var(--color-ember-soft);
+  color: var(--color-room);
+}
+
+/* breathing dot for the ambient state indicator */
+@keyframes breathe {
+  0%,
+  100% {
+    opacity: 0.4;
+    transform: scale(0.9);
   }
-  body {
-    background-color: hsl(var(--background));
-    color: hsl(var(--foreground));
-    font-family: var(--font-sans);
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
-  }
-  h1, h2, h3, h4, h5, h6 {
-    font-family: var(--font-display);
-    letter-spacing: -0.025em;
+  50% {
+    opacity: 1;
+    transform: scale(1.1);
   }
 }
 
-@layer utilities {
-  .glass-panel {
-    @apply bg-white/5 backdrop-blur-xl border border-white/10 shadow-xl;
-  }
+.animate-breathe {
+  animation: breathe 2.4s ease-in-out infinite;
+}
 
-  .glass-button {
-    @apply bg-white/10 hover:bg-white/20 active:bg-white/30 transition-all border border-white/5 backdrop-blur-md;
+/* streaming text caret */
+@keyframes caret {
+  0%,
+  45% {
+    opacity: 1;
   }
+  55%,
+  100% {
+    opacity: 0;
+  }
+}
 
-  .glass-input {
-    @apply bg-transparent border-b border-white/20 focus:border-white/50 transition-colors focus:outline-none px-0 rounded-none;
-  }
+.animate-caret {
+  animation: caret 1s steps(1) infinite;
+}
 
-  .text-glow {
-    text-shadow: 0 0 20px rgba(255, 0, 204, 0.5);
-  }
+/* quiet scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-room-line) transparent;
 }

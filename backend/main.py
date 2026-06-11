@@ -1,128 +1,65 @@
-"""FastAPI backend for ClarityMentor voice system."""
+"""ClarityMentor v2 backend — FastAPI app factory."""
 
 from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
 
-from backend.config import settings, voice_config, emotion_prompts
-from backend.services import (
-    ModelService,
-    model_service,
-    STTService,
-    TTSService,
-    EmotionService,
-    LLMService,
-    SessionService,
-)
-
-
-# Initialize services (will be populated on startup)
-stt_service: STTService
-tts_service: TTSService
-emotion_service: EmotionService
-llm_service: LLMService
-session_service: SessionService
+from backend.api import rest, ws
+from backend.config import settings
+from backend.core.llm import LLMClient
+from backend.core.pipeline import LatencyStats
+from backend.db import Database
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """FastAPI lifespan context manager for startup/shutdown."""
-    # Startup
-    try:
-        print("\n" + "=" * 70)
-        print("CLARITYMENTOR FASTAPI BACKEND - STARTUP")
-        print("=" * 70)
+    app.state.ready = False
+    app.state.stats = LatencyStats()
+    app.state.system_prompt = settings.system_prompt
 
-        # Load all models once
-        await model_service.initialize()
+    app.state.db = Database(settings.DB_PATH)
+    await app.state.db.connect()
 
-        # Initialize services with loaded models
-        global stt_service, tts_service, emotion_service, llm_service, session_service
-
-        stt_service = STTService(model_service)
-        tts_service = TTSService(model_service)
-        emotion_service = EmotionService(model_service)
-        llm_service = LLMService(model_service, emotion_prompts)
-        session_service = SessionService()
-
-        print("\n✓ All services initialized and ready!")
-        print("=" * 70)
-        print("\nWebSocket endpoint: ws://localhost:2323/ws/voice")
-        print("Health check: http://localhost:2323/api/health")
-        print("=" * 70 + "\n")
-
-        yield
-
-    except Exception as e:
-        print(f"\n✗ Failed to initialize services: {e}")
-        raise
-
-    # Shutdown
-    finally:
-        print("\n" + "=" * 70)
-        print("SHUTTING DOWN")
-        print("=" * 70)
-        await model_service.shutdown()
-        print("=" * 70 + "\n")
-
-
-# Create FastAPI app with lifespan
-app = FastAPI(
-    title="ClarityMentor Voice API",
-    description="Voice-to-voice chat with emotion detection",
-    version="1.0.0",
-    lifespan=lifespan,
-)
-
-# CORS for local dev (Vite uses dynamic ports)
-if settings.DEBUG:
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origin_regex=r"^http://(localhost|127\.0\.0\.1):\d+$",
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
-else:
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=[
-            "http://localhost:5173",
-            "http://127.0.0.1:5173",
-        ],
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
+    app.state.llm = LLMClient(
+        base_url=settings.LLM_BASE_URL,
+        model=settings.LLM_MODEL,
+        max_tokens=settings.LLM_MAX_TOKENS,
+        temperature=settings.LLM_TEMPERATURE,
     )
 
+    # ONNX engines: a few hundred MB of RAM, ~20s load, CPU-only
+    print("Loading STT (Parakeet TDT 0.6B v3 int8)...")
+    from backend.core.stt import ParakeetSTT
 
-# Import and include routers
-from backend.api import websocket, rest
+    app.state.stt = ParakeetSTT(settings.parakeet_dir)
 
-app.include_router(websocket.router)
+    print("Loading TTS (Kokoro-82M, voice=%s)..." % settings.TTS_VOICE)
+    from backend.core.tts import KokoroTTS
+
+    app.state.tts = KokoroTTS(
+        settings.kokoro_model, settings.kokoro_voices, settings.TTS_VOICE, settings.TTS_SPEED
+    )
+
+    from backend.core.vad import SileroVAD
+
+    # Each WS connection gets its own VAD (stateful), sharing nothing
+    app.state.make_vad = lambda: SileroVAD(settings.silero_model)
+
+    app.state.ready = True
+    print("Backend ready.")
+
+    yield
+
+    await app.state.llm.close()
+    await app.state.db.close()
+
+
+app = FastAPI(title="ClarityMentor v2", version="2.0.0", lifespan=lifespan)
 app.include_router(rest.router, prefix="/api")
-
-
-# Exception handlers
-@app.exception_handler(Exception)
-async def general_exception_handler(request, exc):
-    """Handle general exceptions."""
-    return JSONResponse(
-        status_code=500,
-        content={
-            "error": "Internal server error",
-            "details": str(exc),
-        },
-    )
+app.include_router(ws.router)
 
 
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(
-        app,
-        host=settings.HOST,
-        port=settings.PORT,
-        reload=settings.DEBUG,
-    )
+    uvicorn.run("backend.main:app", host=settings.HOST, port=settings.PORT, reload=settings.DEBUG)

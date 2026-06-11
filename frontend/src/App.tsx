@@ -1,236 +1,173 @@
-import { useState, useEffect } from 'react';
-import toast, { Toaster } from 'react-hot-toast';
-import { api } from './lib/api';
-import { useAudioRecording } from './hooks/useAudioRecording';
-import { useVoiceProcessing } from './hooks/useVoiceProcessing';
-import { useWebSocketConnection } from './hooks/useWebSocketConnection';
-import { RootLayout } from './components/layout/RootLayout';
-import { Sidebar } from './components/layout/Sidebar';
-import { ChatInterface } from './components/chat/ChatInterface';
-import { VoiceMode } from './components/voice/VoiceMode';
-import { EmotionDashboard } from './components/emotion/EmotionDashboard';
-import { LandingPage } from './components/layout/LandingPage';
-import type { ChatMessage } from './types/chat';
-import type { EmotionData } from './types/api';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useConversation, type ChatLine } from '@/hooks/useConversation';
+import { useMicStream } from '@/hooks/useMicStream';
+import { usePlayback } from '@/hooks/usePlayback';
+import { SessionDrawer } from '@/components/SessionDrawer';
+import { Waveform } from '@/components/Waveform';
 
-function App() {
-  // --- State ---
-  const [view, setView] = useState<'landing' | 'chat' | 'voice'>('landing');
-  const [isHealthy, setIsHealthy] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [sessionId, setSessionId] = useState<string | null>(null);
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [input, setInput] = useState('');
-  const [isStarting, setIsStarting] = useState(false);
-  const [isSending, setIsSending] = useState(false);
-  const [currentEmotion, setCurrentEmotion] = useState<EmotionData | null>(null);
-  const [statusMessage, setStatusMessage] = useState('');
-  const [isMuted, setIsMuted] = useState(false);
-  const [audioLevel, setAudioLevel] = useState(0);
+const STATE_LABEL: Record<string, string> = {
+  idle: 'offline',
+  connecting: 'waking up',
+  listening: 'listening',
+  transcribing: 'listening',
+  generating: 'thinking',
+  speaking: 'speaking',
+};
 
-  // --- Hooks ---
-  const { playAudioResponse, setMuted: setVoiceMuted, isPlaying } = useVoiceProcessing();
+export default function App() {
+  const [began, setBegan] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [draft, setDraft] = useState('');
+  const scrollRef = useRef<HTMLDivElement>(null);
 
-  const {
-    isRecording,
-    isProcessing: isRecordingProcessing,
-    stopRecording,
-    toggleRecording
-  } = useAudioRecording({
-    onAudioData: (data) => {
-      if (isConnected) {
-        sendAudio(data);
-      } else {
-        toast.error('Voice connection lost'); // removed unused toast import? No, I see imports.
-      }
-    }
+  const playback = usePlayback();
+  const conversation = useConversation({
+    onAudio: playback.enqueue,
+    onInterrupted: playback.flush,
   });
+  const mic = useMicStream(conversation.sendAudio);
 
-  const { isConnected, sendAudio, reconnect } = useWebSocketConnection({
-    onAudioResponse: playAudioResponse,
-    onTranscript: (text) => addMessage('user', text),
-    onResponse: (text, emotion) => {
-      addMessage('assistant', text, emotion);
-      if (emotion) setCurrentEmotion(emotion);
-    },
-    onEmotionUpdate: (emotion) => setCurrentEmotion(emotion),
-    onStatusUpdate: setStatusMessage,
-    onProcessingUpdate: () => { /* handled by local state if needed */ }
-  });
+  const begin = useCallback(async () => {
+    setBegan(true);
+    conversation.connect();
+    await mic.start();
+  }, [conversation, mic]);
 
-  // --- Effects ---
-
-  // Backend Health Check
+  // Keep the latest words in view
   useEffect(() => {
-    const checkBackend = async () => {
-      try {
-        const health = await api.health();
-        setIsHealthy(health.status === 'healthy');
-        setError(null);
-      } catch (err) {
-        setIsHealthy(false);
-        setError('Backend offline. Start it with: ./run_backend.sh');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    checkBackend();
-    const interval = setInterval(checkBackend, 10000);
-    return () => clearInterval(interval);
-  }, []);
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
+  }, [conversation.lines, conversation.streaming]);
 
-  // Sync mute state
-  useEffect(() => {
-    setVoiceMuted(isMuted);
-  }, [isMuted, setVoiceMuted]);
-
-  // Handle View/Mode Switching
-  useEffect(() => {
-    if (view === 'voice') {
-      if (!isConnected) reconnect();
-    } else {
-      // Optional: disconnect if moving away from voice view?
-      // Keeping it connected might be better for seamless switching.
-      if (isRecording) stopRecording();
-    }
-  }, [view, isConnected, reconnect, isRecording, stopRecording]);
-
-
-  // --- Handlers ---
-
-  const addMessage = (role: 'user' | 'assistant', content: string, emotion?: EmotionData) => {
-    setMessages((prev) => [...prev, {
-      id: crypto.randomUUID(),
-      role,
-      content,
-      emotion,
-      timestamp: new Date(),
-    }]);
+  const toggleMute = () => {
+    const next = !playback.muted;
+    playback.setMuted(next);
+    conversation.setMuted(next);
   };
 
-  const handleStartSession = async () => {
-    if (!isHealthy || isStarting) return;
-    setIsStarting(true);
-    try {
-      const session = await api.createSession();
-      setSessionId(session.session_id);
-      setView('chat');
-      toast.success('Session started'); // toast is imported
-    } catch (err) {
-      toast.error('Failed to start session');
-    } finally {
-      setIsStarting(false);
-    }
+  const submitDraft = () => {
+    if (!draft.trim()) return;
+    conversation.sendText(draft);
+    setDraft('');
   };
 
-  const handleSendMessage = async () => {
-    const text = input.trim();
-    if (!text || isSending) return;
-
-    addMessage('user', text);
-    setInput('');
-    setIsSending(true);
-
-    try {
-      const response = await api.sendTextMessage({
-        text,
-        session_id: sessionId ?? undefined,
-      });
-
-      if (!sessionId) setSessionId(response.session_id);
-
-      addMessage('assistant', response.response, response.emotion);
-      setCurrentEmotion(response.emotion);
-    } catch (err) {
-      toast.error('Failed to send message');
-      addMessage('assistant', 'I had trouble responding. Please try again.');
-    } finally {
-      setIsSending(false);
-    }
-  };
-
-  // Mock audio level for visualization (real implementation would use AnalyserNode)
-  useEffect(() => {
-    if (isRecording || isPlaying) {
-      const interval = setInterval(() => {
-        setAudioLevel(Math.random() * 0.5 + 0.3);
-      }, 100);
-      return () => clearInterval(interval);
-    } else {
-      setAudioLevel(0);
-    }
-  }, [isRecording, isPlaying]);
-
-
-  // --- Render ---
-
-  if (view === 'landing') {
+  if (!began) {
     return (
-      <RootLayout>
-         <LandingPage
-            onConnect={handleStartSession}
-            isHealthy={isHealthy}
-            isLoading={isLoading}
-            isStarting={isStarting}
-            error={error}
-         />
-         <Toaster position="top-right" toastOptions={{
-             className: '!bg-slate-900 !text-white !border !border-white/10',
-         }} />
-      </RootLayout>
+      <main className="flex h-full flex-col items-center justify-center gap-10 px-6">
+        <h1 className="font-serif text-3xl font-light tracking-wide text-ink">Clarity</h1>
+        <p className="max-w-xs text-center text-sm leading-relaxed text-ink-dim">
+          A voice to think out loud with. Everything stays on this machine.
+        </p>
+        <button
+          onClick={() => void begin()}
+          className="rounded-full border border-ember-soft px-8 py-3 text-ember transition-colors hover:bg-ember hover:text-room"
+        >
+          Begin
+        </button>
+      </main>
     );
   }
 
+  const status = STATE_LABEL[conversation.state] ?? '';
+
   return (
-    <RootLayout>
-      <div className="flex h-[85vh] gap-6 relative">
-        {/* Sidebar Navigation */}
-        <div className="hidden md:flex h-full">
-             <Sidebar
-               currentView={view}
-               setCurrentView={setView}
-             />
-        </div>
+    <main className="mx-auto flex h-full max-w-2xl flex-col px-5">
+      {/* top bar — almost nothing */}
+      <header className="flex items-center justify-between py-4">
+        <button
+          onClick={() => setDrawerOpen(true)}
+          className="text-sm text-ink-faint transition-colors hover:text-ink"
+        >
+          conversations
+        </button>
+        <button
+          onClick={toggleMute}
+          className={`text-sm transition-colors ${
+            playback.muted ? 'text-ember' : 'text-ink-faint hover:text-ink'
+          }`}
+        >
+          {playback.muted ? 'voice off' : 'voice on'}
+        </button>
+      </header>
 
-        {/* Main Content Area */}
-        <div className="flex-1 flex flex-col relative min-w-0">
-          {view === 'chat' ? (
-            <ChatInterface
-              messages={messages}
-              input={input}
-              setInput={setInput}
-              onSend={handleSendMessage}
-              isSending={isSending}
-              isRecording={isRecording}
-              onToggleVoice={() => setView('voice')}
-              isLoading={isSending} // repurposed loading state
-            />
+      {/* the conversation */}
+      <div ref={scrollRef} className="flex-1 space-y-8 overflow-y-auto py-6">
+        {conversation.lines.length === 0 && !conversation.streaming && (
+          <p className="pt-24 text-center text-sm text-ink-faint">
+            {mic.isActive ? 'Just start talking.' : 'Type below to begin.'}
+          </p>
+        )}
+
+        {conversation.lines.map((line: ChatLine) =>
+          line.role === 'user' ? (
+            <p key={line.id} className="text-base leading-relaxed text-ink-dim">
+              <span className="text-ink-faint">— </span>
+              {line.content}
+            </p>
           ) : (
-            <VoiceMode
-              isRecording={isRecording}
-              isProcessing={isRecordingProcessing || (!isRecording && isPlaying)} // simplified processing state
-              isPlaying={isPlaying}
-              onToggleRecording={toggleRecording}
-              isMuted={isMuted}
-              onToggleMute={() => setIsMuted(!isMuted)}
-              statusMessage={statusMessage}
-              audioLevel={audioLevel}
-            />
-          )}
-        </div>
+            <p key={line.id} className="font-serif text-lg leading-loose text-ink">
+              {line.content}
+            </p>
+          )
+        )}
 
-        {/* Right Sidebar: Emotion Dashboard (Desktop) */}
-        <div className="hidden lg:block w-80">
-          <EmotionDashboard currentEmotion={currentEmotion} />
-        </div>
+        {conversation.streaming && (
+          <p className="font-serif text-lg leading-loose text-ink">
+            {conversation.streaming}
+            <span className="animate-caret text-ember">▌</span>
+          </p>
+        )}
       </div>
 
-      <Toaster position="top-right" toastOptions={{
-         className: '!bg-slate-900 !text-white !border !border-white/10',
-      }} />
-    </RootLayout>
+      {/* the floor: waveform, state, input */}
+      <footer className="space-y-3 pb-6">
+        <Waveform
+          analyser={mic.analyser}
+          active={mic.isActive && (conversation.state === 'listening' || conversation.state === 'transcribing')}
+        />
+
+        <div className="flex items-center justify-center gap-2 text-xs tracking-widest text-ink-faint uppercase">
+          <span
+            className={`inline-block h-1.5 w-1.5 rounded-full ${
+              conversation.state === 'speaking'
+                ? 'animate-breathe bg-ember'
+                : conversation.state === 'generating'
+                  ? 'animate-breathe bg-ink-dim'
+                  : conversation.state === 'listening' || conversation.state === 'transcribing'
+                    ? 'bg-ember'
+                    : 'bg-ink-faint'
+            }`}
+          />
+          {status}
+        </div>
+
+        {(mic.error ?? conversation.error) && (
+          <p className="text-center text-xs text-ember-soft">{mic.error ?? conversation.error}</p>
+        )}
+
+        <div className="flex items-center gap-3 border-t border-room-line pt-4">
+          <input
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') submitDraft();
+            }}
+            placeholder="or type instead…"
+            className="flex-1 bg-transparent text-sm text-ink placeholder-ink-faint outline-none"
+          />
+          {draft.trim() && (
+            <button onClick={submitDraft} className="text-sm text-ember hover:text-ink">
+              send
+            </button>
+          )}
+        </div>
+      </footer>
+
+      <SessionDrawer
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        currentSessionId={conversation.sessionId}
+        onSelect={(id) => void conversation.switchSession(id)}
+      />
+    </main>
   );
 }
-
-export default App;

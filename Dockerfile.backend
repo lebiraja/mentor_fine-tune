@@ -1,85 +1,20 @@
-FROM nvidia/cuda:12.1.0-devel-ubuntu22.04
+FROM python:3.12-slim
 
-# Set environment variables
-ENV DEBIAN_FRONTEND=noninteractive
-ENV PYTHONUNBUFFERED=1
-ENV CUDA_HOME=/usr/local/cuda
-ENV PATH="${CUDA_HOME}/bin:${PATH}"
-ENV LD_LIBRARY_PATH="${CUDA_HOME}/lib64:${LD_LIBRARY_PATH}"
+ENV PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1
 
-# Set working directory
 WORKDIR /app
 
-# Install Python and system dependencies
-RUN apt-get update && apt-get install -y \
-    python3.10 \
-    python3.10-dev \
-    python3-pip \
-    build-essential \
-    git \
-    curl \
-    ffmpeg \
-    libsndfile1 \
-    libsndfile1-dev \
-    libportaudio2 \
-    portaudio19-dev \
-    espeak \
-    espeak-ng \
-    sox \
-    && rm -rf /var/lib/apt/lists/*
+COPY requirements.txt ./
+RUN pip install -r requirements.txt
 
-# Make python3.10 the default python
-RUN update-alternatives --install /usr/bin/python python /usr/bin/python3.10 1 \
-    && update-alternatives --install /usr/bin/pip pip /usr/bin/pip3 1
-
-# Upgrade pip and install build dependencies
-RUN pip install --no-cache-dir --upgrade pip setuptools wheel
-
-# Clone CosyVoice FIRST (so we can install its requirements)
-RUN git clone --recursive https://github.com/FunAudioLLM/CosyVoice.git /app/CosyVoice
-
-# Install Matcha-TTS submodule first
-WORKDIR /app/CosyVoice/third_party/Matcha-TTS
-RUN pip install --no-cache-dir -e .
-
-# Install CosyVoice's requirements (these are the tested/pinned versions)
-WORKDIR /app/CosyVoice
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Fix torch/torchvision compatibility - CosyVoice uses torch 2.3.1, need matching torchvision
-RUN pip install --no-cache-dir torchvision==0.18.1 torchaudio==2.3.1
-
-# Go back to app directory
-WORKDIR /app
-
-# Copy our requirements files
-COPY requirements_backend.txt requirements_voice.txt ./
-
-# Install our backend requirements (FastAPI, etc.)
-RUN pip install --no-cache-dir -r requirements_backend.txt
-
-# Install additional voice requirements not in CosyVoice (speechbrain, webrtcvad, sounddevice)
-# Note: Most voice deps are already in CosyVoice requirements
-RUN pip install --no-cache-dir speechbrain>=1.0.0 webrtcvad>=2.0.10 sounddevice>=0.5.0 soundfile>=0.12.0 librosa>=0.10.0
-
-# Add CosyVoice to python path
-ENV PYTHONPATH="${PYTHONPATH}:/app/CosyVoice"
-ENV PRETRAINED_MODEL_DIR="/app/CosyVoice/pretrained_models"
-
-# Copy backend code
 COPY backend/ ./backend/
-COPY scripts/ ./scripts/
 COPY config/ ./config/
+COPY tests/ ./tests/
+COPY pyproject.toml ./
 
-# Create directories for models, data, and logs
-RUN mkdir -p /app/models /app/data /app/logs
+RUN mkdir -p /app/data /app/models
 
-# Expose the backend port
 EXPOSE 2323
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=180s --retries=5 \
-    CMD curl -f http://localhost:2323/api/health || exit 1
-
-# Run the FastAPI backend
 CMD ["python", "-m", "uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "2323", "--ws-max-size", "10485760"]

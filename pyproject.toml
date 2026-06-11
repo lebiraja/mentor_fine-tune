@@ -1,0 +1,7 @@
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+markers = [
+    "smoke: tests that load the real ONNX models (need `make models` first)",
+]
+addopts = "-m 'not smoke'"
