@@ -37,8 +37,8 @@ def stt():
 
     return WhisperSTT(
         model_size=settings.STT_MODEL,
-        device=settings.STT_DEVICE,
-        compute_type=settings.STT_COMPUTE_TYPE,
+        device="cpu",
+        compute_type="int8",
     )
 
 

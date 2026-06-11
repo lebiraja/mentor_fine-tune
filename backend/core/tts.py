@@ -43,10 +43,14 @@ class PiperTTS:
         text = text.strip()
         if not text:
             return b"", self.sample_rate
-        chunks: list[bytes] = []
-        for chunk in self.voice.synthesize_stream_raw(text):
-            chunks.append(chunk)
-        return b"".join(chunks), self.sample_rate
+        chunks: list[np.ndarray] = []
+        for chunk in self.voice.synthesize(text):
+            chunks.append(chunk.audio_float_array)
+        if not chunks:
+            return b"", self.sample_rate
+        audio = np.concatenate(chunks)
+        clipped = np.clip(audio, -1.0, 1.0)
+        return (clipped * 32767).astype(np.int16).tobytes(), self.sample_rate
 
 
 class TTSRouter:

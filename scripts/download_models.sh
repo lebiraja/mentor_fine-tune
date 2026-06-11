@@ -20,12 +20,12 @@ KOKORO_BASE="https://github.com/thewh1teagle/kokoro-onnx/releases/download/model
 [ -f models/kokoro/kokoro-v1.0.onnx ] || curl -L --fail -o models/kokoro/kokoro-v1.0.onnx "$KOKORO_BASE/kokoro-v1.0.onnx"
 [ -f models/kokoro/voices-v1.0.bin ]  || curl -L --fail -o models/kokoro/voices-v1.0.bin  "$KOKORO_BASE/voices-v1.0.bin"
 
-echo "==> [3/4] TTS Tamil: Piper ta_IN-female-medium (~60 MB)"
-PIPER_BASE="https://huggingface.co/rhasspy/piper-voices/resolve/main/ta/ta_IN/female/medium"
-[ -f models/piper-tamil/ta_IN-female-medium.onnx ] || \
-    curl -L --fail -o models/piper-tamil/ta_IN-female-medium.onnx "$PIPER_BASE/ta_IN-female-medium.onnx"
-[ -f models/piper-tamil/ta_IN-female-medium.onnx.json ] || \
-    curl -L --fail -o models/piper-tamil/ta_IN-female-medium.onnx.json "$PIPER_BASE/ta_IN-female-medium.onnx.json"
+echo "==> [3/4] TTS Tamil: Piper ta_IN-Valluvar-medium (~60 MB)"
+PIPER_BASE="https://huggingface.co/datasets/Jeyaram-K/piper-tamil-voice/resolve/main/ta_IN-Valluvar-medium"
+[ -f models/piper-tamil/ta_IN-Valluvar-medium.onnx ] || \
+    curl -L --fail -o models/piper-tamil/ta_IN-Valluvar-medium.onnx "$PIPER_BASE/ta_IN-Valluvar-medium.onnx"
+[ -f models/piper-tamil/ta_IN-Valluvar-medium.onnx.json ] || \
+    curl -L --fail -o models/piper-tamil/ta_IN-Valluvar-medium.onnx.json "$PIPER_BASE/ta_IN-Valluvar-medium.onnx.json"
 
 echo "==> [4/4] VAD: Silero v5 ONNX (~2 MB)"
 [ -f models/silero/silero_vad.onnx ] || curl -L --fail -o models/silero/silero_vad.onnx \

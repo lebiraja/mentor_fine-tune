@@ -45,11 +45,11 @@ class Settings(BaseSettings):
 
     @property
     def piper_tamil_model(self) -> Path:
-        return self.MODELS_DIR / "piper-tamil" / "ta_IN-female-medium.onnx"
+        return self.MODELS_DIR / "piper-tamil" / "ta_IN-Valluvar-medium.onnx"
 
     @property
     def piper_tamil_config(self) -> Path:
-        return self.MODELS_DIR / "piper-tamil" / "ta_IN-female-medium.onnx.json"
+        return self.MODELS_DIR / "piper-tamil" / "ta_IN-Valluvar-medium.onnx.json"
 
     @property
     def kokoro_model(self) -> Path:
