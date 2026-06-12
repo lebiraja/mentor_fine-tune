@@ -59,6 +59,15 @@ class ConversationPipeline:
         self.muted = False
         self._turn_task: asyncio.Task | None = None
 
+        # Half-duplex echo guard: while the assistant is producing audio (and for a
+        # short tail afterward), ignore the mic so the bot doesn't hear itself and
+        # loop. Set allow_barge_in=True (e.g. for headphone users) to disable this.
+        self.allow_barge_in = False
+        self._busy = False  # transcribing/generating/speaking
+        self._echo_guard_until = 0.0  # monotonic deadline after last audio sent
+        self._plays_until = 0.0  # monotonic estimate of when queued audio finishes
+        self.echo_tail_s = 0.8
+
     # ------------------------------------------------------------------ input
 
     async def set_session(self, session_id: str | None, persona_id: str | None = None) -> str:
@@ -103,10 +112,19 @@ class ConversationPipeline:
         """Continuous 16 kHz int16 mono frames from the client mic."""
         if self.muted:
             return
+
+        # Half-duplex echo guard: drop mic input while the assistant is busy
+        # producing audio, plus a short tail, so it never transcribes its own
+        # voice leaking from the speakers. (Disabled when barge-in is allowed.)
+        if not self.allow_barge_in and (self._busy or time.monotonic() < self._echo_guard_until):
+            self.turns.reset()  # discard any partial/echo frames
+            return
+
         pcm = np.frombuffer(pcm_bytes, dtype=np.int16).astype(np.float32) / 32768.0
         for event in self.turns.process(pcm):
             if event.kind == "speech_start":
-                await self._barge_in()
+                if self.allow_barge_in:
+                    await self._barge_in()
                 await self.send_json({"type": "state", "state": "listening"})
             elif event.kind == "utterance":
                 self._start_turn(audio=event.audio)
@@ -126,10 +144,22 @@ class ConversationPipeline:
     # ------------------------------------------------------------------- turn
 
     def _start_turn(self, audio: np.ndarray | None = None, text: str | None = None) -> None:
+        self._busy = True  # set synchronously so mic frames are gated immediately
         self._turn_task = asyncio.create_task(self._run_turn(audio, text))
 
     def _start_greeting(self) -> None:
+        self._busy = True
         self._turn_task = asyncio.create_task(self._run_greeting())
+
+    def _end_busy(self) -> None:
+        """Clear busy state and open the echo-guard tail before listening resumes.
+
+        The guard extends past when the queued TTS audio actually finishes playing
+        in the browser (not just when it was sent), plus a tail for the echo decay.
+        """
+        self._busy = False
+        self._echo_guard_until = max(time.monotonic(), self._plays_until) + self.echo_tail_s
+        self.turns.reset()  # forget any echo frames buffered during speech
 
     async def _barge_in(self) -> None:
         if self._turn_task and not self._turn_task.done():
@@ -189,6 +219,8 @@ class ConversationPipeline:
             await self.send_json({"type": "error", "message": "Something went wrong, try again."})
             print(f"[pipeline] turn failed: {type(e).__name__}: {e}")
             await self.send_json({"type": "state", "state": "listening"})
+        finally:
+            self._end_busy()
 
     async def _run_greeting(self) -> None:
         """Proactive opening for personas like Friend — speak first, no user turn."""
@@ -220,6 +252,8 @@ class ConversationPipeline:
         except Exception as e:
             print(f"[pipeline] greeting failed: {type(e).__name__}: {e}")
             await self.send_json({"type": "state", "state": "listening"})
+        finally:
+            self._end_busy()
 
     async def _stream_and_speak(
         self,
@@ -258,6 +292,12 @@ class ConversationPipeline:
                 t_first_audio = time.perf_counter()
                 self.stats.record("first_audio_ms", (t_first_audio - t0) * 1000)
             await self.send_bytes(pcm)
+            # Track when this audio will finish playing in the browser (24kHz int16
+            # mono). Chunks queue gaplessly, so playback ends at max(now, prev_end)
+            # + this chunk's duration. Used by the echo guard.
+            chunk_s = len(pcm) / 2 / 24000
+            now = time.monotonic()
+            self._plays_until = max(now, self._plays_until) + chunk_s
 
         async for delta in self.llm.stream_chat(messages):
             if t_first_token is None:

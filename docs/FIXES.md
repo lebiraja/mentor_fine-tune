@@ -2,6 +2,32 @@
 
 Running log of significant fixes and the reasoning behind them.
 
+## 2026-06-12 — self-listening loop + truncated input
+
+Two reported bugs, same root area (turn-taking on laptop speakers):
+
+1. **The bot heard itself and looped.** TTS played through the speakers leaked into
+   the mic; the backend ran VAD on everything regardless of state, so the bot's own
+   voice became a new "utterance" → barge-in → new turn → spiral. Browser
+   `echoCancellation` alone can't stop this (the TTS plays via a separate AudioContext
+   the canceller doesn't use as a reference).
+   **Fix — half-duplex echo guard:** while the assistant is busy (transcribing/
+   generating/speaking) *and* for a tail after, the pipeline ignores mic input and
+   resets the turn detector so no echo frames accumulate. `_busy` is set synchronously
+   when a turn starts; the guard extends past when the queued TTS audio actually
+   finishes *playing* in the browser (computed from chunk durations), not just when it
+   was sent. Tunable via `ALLOW_BARGE_IN` (set true for headphones) and `ECHO_TAIL_S`.
+
+2. **It only caught the last bit of what I said.** `VAD_END_SILENCE_S=0.6` ended the
+   turn on any mid-sentence pause >0.6s, so a thinking pause split one utterance into
+   fragments (and the continuation started a fresh turn). Raised the default to **0.9s**.
+   The loop in (1) compounded this — fixing the loop also stopped mid-utterance turn
+   restarts.
+
+Verified live: feeding "echo" audio at the bot 3× while it spoke produced exactly one
+user turn (no loop), and the full sentence was transcribed (not truncated). +6 unit
+tests (`test_echo_guard.py`); 48→54 total.
+
 ## 2026-06-12 — personas (conversational modes)
 
 Added selectable personas so the app isn't only "Clarity". Five modes: Clarity,

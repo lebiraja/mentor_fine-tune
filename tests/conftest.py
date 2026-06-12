@@ -53,11 +53,27 @@ class FakeLLM:
 
 
 class FakeTurnDetector:
+    """Emits a queued utterance whenever process() is called; counts resets."""
+
+    def __init__(self):
+        from backend.core.vad import TurnEvent
+
+        self._TurnEvent = TurnEvent
+        self.pending: list = []  # list of utterance audio arrays to emit
+        self.resets = 0
+
+    def queue_utterance(self, audio):
+        self.pending.append(audio)
+
     def process(self, pcm):
+        if self.pending:
+            audio = self.pending.pop(0)
+            return [self._TurnEvent("utterance", audio=audio)]
         return []
 
     def reset(self):
-        pass
+        self.resets += 1
+        self.pending.clear()
 
 
 # A tiny in-memory persona registry so pipeline tests don't depend on config files.
@@ -126,12 +142,12 @@ def personas():
 
 @pytest.fixture
 def make_pipeline(db, collector, personas):
-    def _make(llm=None, stt=None, tts=None, registry=None) -> ConversationPipeline:
+    def _make(llm=None, stt=None, tts=None, registry=None, turn_detector=None) -> ConversationPipeline:
         return ConversationPipeline(
             stt=stt or FakeSTT(),
             tts=tts or FakeTTS(),
             llm=llm or FakeLLM(),
-            turn_detector=FakeTurnDetector(),
+            turn_detector=turn_detector or FakeTurnDetector(),
             db=db,
             personas=registry or personas,
             context_tokens=8192,

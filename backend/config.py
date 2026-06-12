@@ -39,7 +39,14 @@ class Settings(BaseSettings):
     # VAD turn-taking
     VAD_THRESHOLD: float = 0.5
     VAD_MIN_SPEECH_S: float = 0.25
-    VAD_END_SILENCE_S: float = 0.6
+    VAD_END_SILENCE_S: float = 0.9  # tolerate mid-sentence pauses before ending a turn
+
+    # Echo / feedback handling (laptop speakers without headphones)
+    # When false (default), the mic is ignored while the assistant speaks + a tail,
+    # so it never transcribes its own voice. Set true if you use headphones and want
+    # to interrupt the assistant by speaking.
+    ALLOW_BARGE_IN: bool = False
+    ECHO_TAIL_S: float = 0.8
 
     DB_PATH: Path = BASE_DIR / "data" / "clarity.db"
 

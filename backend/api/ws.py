@@ -53,6 +53,8 @@ async def chat_websocket(websocket: WebSocket):
         send_bytes=websocket.send_bytes,
         stats=app.state.stats,
     )
+    pipeline.allow_barge_in = settings.ALLOW_BARGE_IN
+    pipeline.echo_tail_s = settings.ECHO_TAIL_S
 
     try:
         while True:
