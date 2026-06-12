@@ -2,7 +2,7 @@
 
 Protocol (client -> server):
   binary frames            16 kHz int16 mono PCM mic audio
-  {"type":"set_session","session_id": str|null}
+  {"type":"set_session","session_id": str|null, "persona": str|null}
   {"type":"user_text","text": str}
   {"type":"mute","muted": bool}
 
@@ -14,6 +14,8 @@ Protocol (server -> client):
   {"type":"assistant_delta","text": str}
   {"type":"assistant_done","text": str}
   {"type":"interrupted"}
+  {"type":"assistant_greeting","text": str}   # proactive opening (Friend persona)
+  {"type":"session","session_id": str, "persona": str}
   {"type":"error","message": str}
 """
 
@@ -45,7 +47,7 @@ async def chat_websocket(websocket: WebSocket):
         llm=app.state.llm,
         turn_detector=turn_detector,
         db=app.state.db,
-        system_prompt=app.state.system_prompt,
+        personas=app.state.personas,
         context_tokens=settings.LLM_CONTEXT_TOKENS,
         send_json=websocket.send_json,
         send_bytes=websocket.send_bytes,
@@ -68,15 +70,23 @@ async def chat_websocket(websocket: WebSocket):
 
                 match msg.get("type"):
                     case "set_session":
-                        session_id = await pipeline.set_session(msg.get("session_id"))
-                        await websocket.send_json({"type": "session", "session_id": session_id})
+                        session_id = await pipeline.set_session(
+                            msg.get("session_id"), msg.get("persona")
+                        )
+                        await websocket.send_json({
+                            "type": "session",
+                            "session_id": session_id,
+                            "persona": pipeline.persona.id,
+                        })
                         await websocket.send_json({"type": "state", "state": "listening"})
                     case "user_text":
                         if pipeline.session_id is None:
                             await pipeline.set_session(None)
-                            await websocket.send_json(
-                                {"type": "session", "session_id": pipeline.session_id}
-                            )
+                            await websocket.send_json({
+                                "type": "session",
+                                "session_id": pipeline.session_id,
+                                "persona": pipeline.persona.id,
+                            })
                         await pipeline.handle_text(msg.get("text", ""))
                     case "mute":
                         pipeline.muted = bool(msg.get("muted"))

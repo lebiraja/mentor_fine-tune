@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useConversation, type ChatLine } from '@/hooks/useConversation';
 import { useMicStream } from '@/hooks/useMicStream';
 import { usePlayback } from '@/hooks/usePlayback';
+import { PersonaPicker } from '@/components/PersonaPicker';
 import { SessionDrawer } from '@/components/SessionDrawer';
 import { Waveform } from '@/components/Waveform';
 
@@ -27,11 +28,14 @@ export default function App() {
   });
   const mic = useMicStream(conversation.sendAudio);
 
-  const begin = useCallback(async () => {
-    setBegan(true);
-    conversation.connect();
-    await mic.start();
-  }, [conversation, mic]);
+  const begin = useCallback(
+    async (personaId: string) => {
+      setBegan(true);
+      conversation.start(personaId);
+      await mic.start();
+    },
+    [conversation, mic]
+  );
 
   // Keep the latest words in view
   useEffect(() => {
@@ -51,23 +55,13 @@ export default function App() {
   };
 
   if (!began) {
-    return (
-      <main className="flex h-full flex-col items-center justify-center gap-10 px-6">
-        <h1 className="font-serif text-3xl font-light tracking-wide text-ink">Clarity</h1>
-        <p className="max-w-xs text-center text-sm leading-relaxed text-ink-dim">
-          A voice to think out loud with. Everything stays on this machine.
-        </p>
-        <button
-          onClick={() => void begin()}
-          className="rounded-full border border-ember-soft px-8 py-3 text-ember transition-colors hover:bg-ember hover:text-room"
-        >
-          Begin
-        </button>
-      </main>
-    );
+    return <PersonaPicker onBegin={(id) => void begin(id)} />;
   }
 
   const status = STATE_LABEL[conversation.state] ?? '';
+  const personaName = conversation.persona
+    ? conversation.persona.charAt(0).toUpperCase() + conversation.persona.slice(1)
+    : 'Clarity';
 
   return (
     <main className="mx-auto flex h-full max-w-2xl flex-col px-5">
@@ -79,6 +73,7 @@ export default function App() {
         >
           conversations
         </button>
+        <span className="font-serif text-sm text-ink-dim">{personaName}</span>
         <button
           onClick={toggleMute}
           className={`text-sm transition-colors ${
@@ -166,7 +161,8 @@ export default function App() {
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
         currentSessionId={conversation.sessionId}
-        onSelect={(id) => void conversation.switchSession(id)}
+        onSelect={(id, p) => void conversation.switchSession(id, p)}
+        onNewConversation={() => setBegan(false)}
       />
     </main>
   );

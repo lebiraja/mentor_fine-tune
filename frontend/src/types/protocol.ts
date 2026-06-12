@@ -3,7 +3,11 @@ import { z } from 'zod';
 // ---- WebSocket: server -> client ----
 
 export const serverEventSchema = z.discriminatedUnion('type', [
-  z.object({ type: z.literal('session'), session_id: z.string() }),
+  z.object({
+    type: z.literal('session'),
+    session_id: z.string(),
+    persona: z.string().optional(),
+  }),
   z.object({
     type: z.literal('state'),
     state: z.enum(['listening', 'transcribing', 'generating', 'speaking']),
@@ -15,6 +19,7 @@ export const serverEventSchema = z.discriminatedUnion('type', [
     language_probability: z.number().optional(),
   }),
   z.object({ type: z.literal('assistant_delta'), text: z.string() }),
+  z.object({ type: z.literal('assistant_greeting'), text: z.string() }),
   z.object({ type: z.literal('assistant_done'), text: z.string() }),
   z.object({ type: z.literal('interrupted') }),
   z.object({ type: z.literal('error'), message: z.string() }),
@@ -31,9 +36,18 @@ export type ConversationState =
 
 // ---- REST ----
 
+export const personaSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  tagline: z.string(),
+});
+
+export const personasResponseSchema = z.object({ personas: z.array(personaSchema) });
+
 export const sessionSchema = z.object({
   id: z.string(),
   title: z.string(),
+  persona: z.string().optional(),
   created_at: z.string(),
   message_count: z.number(),
 });
@@ -50,5 +64,6 @@ export const messagesResponseSchema = z.object({
   messages: z.array(messageSchema),
 });
 
+export type Persona = z.infer<typeof personaSchema>;
 export type Session = z.infer<typeof sessionSchema>;
 export type Message = z.infer<typeof messageSchema>;

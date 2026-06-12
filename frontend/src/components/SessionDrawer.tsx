@@ -6,10 +6,17 @@ interface SessionDrawerProps {
   open: boolean;
   onClose: () => void;
   currentSessionId: string | null;
-  onSelect: (sessionId: string | null) => void;
+  onSelect: (sessionId: string, persona?: string) => void;
+  onNewConversation: () => void;
 }
 
-export function SessionDrawer({ open, onClose, currentSessionId, onSelect }: SessionDrawerProps) {
+export function SessionDrawer({
+  open,
+  onClose,
+  currentSessionId,
+  onSelect,
+  onNewConversation,
+}: SessionDrawerProps) {
   const [sessions, setSessions] = useState<Session[]>([]);
 
   useEffect(() => {
@@ -21,7 +28,7 @@ export function SessionDrawer({ open, onClose, currentSessionId, onSelect }: Ses
   const handleDelete = async (id: string) => {
     await api.deleteSession(id).catch(() => undefined);
     setSessions((prev) => prev.filter((s) => s.id !== id));
-    if (id === currentSessionId) onSelect(null);
+    if (id === currentSessionId) onNewConversation();
   };
 
   return (
@@ -52,7 +59,7 @@ export function SessionDrawer({ open, onClose, currentSessionId, onSelect }: Ses
 
           <button
             onClick={() => {
-              onSelect(null);
+              onNewConversation();
               onClose();
             }}
             className="mb-3 rounded border border-room-line px-3 py-2 text-left text-sm text-ember hover:bg-room"
@@ -69,13 +76,16 @@ export function SessionDrawer({ open, onClose, currentSessionId, onSelect }: Ses
                 }`}
               >
                 <button
-                  className="flex-1 truncate text-left text-sm text-ink-dim hover:text-ink"
+                  className="flex-1 truncate text-left hover:text-ink"
                   onClick={() => {
-                    onSelect(session.id);
+                    onSelect(session.id, session.persona);
                     onClose();
                   }}
                 >
-                  {session.title}
+                  <span className="block truncate text-sm text-ink-dim">{session.title}</span>
+                  {session.persona && (
+                    <span className="text-xs text-ink-faint">{session.persona}</span>
+                  )}
                 </button>
                 <button
                   onClick={() => void handleDelete(session.id)}

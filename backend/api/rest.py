@@ -17,6 +17,12 @@ async def health(request: Request):
     }
 
 
+@router.get("/personas")
+async def list_personas(request: Request):
+    """The conversational modes the user can choose before a conversation."""
+    return {"personas": request.app.state.personas.list()}
+
+
 @router.get("/sessions")
 async def list_sessions(request: Request):
     return {"sessions": await request.app.state.db.list_sessions()}

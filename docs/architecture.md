@@ -56,9 +56,27 @@ States: `listening → transcribing → generating → speaking → listening`.
 
 **History windowing:** system prompt + most recent turns fitted to the 8k context with a ~4 chars/token heuristic (`pipeline._windowed_messages`).
 
+## Personas (conversational modes)
+
+Before a conversation, the user picks **who they're talking to**. Each persona (`config/personas/*.yaml`, loaded by `backend/core/personas.py`) is a distinct system prompt + behavior flags:
+
+| Persona | Role | Special |
+|---|---|---|
+| Clarity | philosophical mentor (default) | — |
+| Engineer | technical sounding board | — |
+| General | open, casual companion | — |
+| Coach | next steps + accountability | — |
+| Friend | a friend who knows you | `proactive` + `cross_session_memory` |
+
+The persona is **locked per conversation** — stored in the `sessions.persona` column, chosen on the Begin screen, shown in the session drawer. Resuming a saved conversation restores its persona; you can't change a conversation's voice mid-way.
+
+**Friend** is special on two axes:
+- *Proactive*: on a fresh Friend conversation the pipeline generates and speaks a greeting first (`assistant_greeting` event) — the user doesn't have to start.
+- *Cross-session memory*: when a Friend conversation ends (disconnect, or switching away), the LLM writes a 1–3 sentence summary into the `memories` table. The next Friend conversation injects those summaries into the `{memory}` slot of its prompt, so Friend "remembers" across sessions. Summaries are bounded (most-recent N) so they never blow the context budget. The prompt forbids inventing history not in memory.
+
 ## Persistence
 
-SQLite (`backend/db.py`) in the `clarity-data` volume: `sessions` and `messages` tables. The first user message becomes the session title. The frontend stores the active session id in `localStorage` and resumes it over the WS.
+SQLite (`backend/db.py`) in the `clarity-data` volume: `sessions` (with `persona`), `messages`, and `memories` (Friend's rolling summaries) tables. The first user message becomes the session title. A lightweight migration (`Database._migrate`) adds the `persona` column to pre-existing DBs. The frontend stores the active session id in `localStorage` and resumes it over the WS.
 
 ## Frontend (Quiet Room)
 

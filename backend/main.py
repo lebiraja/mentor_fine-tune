@@ -7,6 +7,7 @@ from fastapi import FastAPI
 from backend.api import rest, ws
 from backend.config import settings
 from backend.core.llm import LLMClient
+from backend.core.personas import PersonaRegistry
 from backend.core.pipeline import LatencyStats
 from backend.db import Database
 
@@ -15,7 +16,7 @@ from backend.db import Database
 async def lifespan(app: FastAPI):
     app.state.ready = False
     app.state.stats = LatencyStats()
-    app.state.system_prompt = settings.system_prompt
+    app.state.personas = PersonaRegistry()
 
     app.state.db = Database(settings.DB_PATH)
     await app.state.db.connect()
