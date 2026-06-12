@@ -46,6 +46,36 @@ async def test_voice_turn_transcribes_first(make_pipeline, collector, db):
     assert messages[0]["content"] == "what should i do about my job"
 
 
+async def test_detected_language_routes_to_tts(make_pipeline, collector, db):
+    """Tamil STT result must reach the TTS router as language='ta'."""
+    from tests.conftest import FakeTTS
+
+    tts = FakeTTS()
+    pipeline = make_pipeline(stt=FakeSTT("வணக்கம்", language="ta"), tts=tts)
+    await pipeline.set_session(None)
+
+    pipeline._start_turn(audio=np.zeros(16000, dtype=np.float32))
+    await _wait_for_turn(pipeline)
+
+    assert collector.events("user_transcript")[0]["language"] == "ta"
+    assert tts.calls, "TTS should have been called"
+    assert all(lang == "ta" for _, lang in tts.calls)
+
+
+async def test_text_turn_defaults_to_english(make_pipeline, db):
+    """Typed turns have no STT, so TTS should route to English."""
+    from tests.conftest import FakeTTS
+
+    tts = FakeTTS()
+    pipeline = make_pipeline(tts=tts)
+    await pipeline.set_session(None)
+
+    await pipeline.handle_text("hello")
+    await _wait_for_turn(pipeline)
+
+    assert all(lang == "en" for _, lang in tts.calls)
+
+
 async def test_empty_transcript_returns_to_listening(make_pipeline, collector, db):
     pipeline = make_pipeline(stt=FakeSTT(""))
     await pipeline.set_session(None)

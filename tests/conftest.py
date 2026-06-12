@@ -7,19 +7,29 @@ import numpy as np
 import pytest
 
 from backend.core.pipeline import ConversationPipeline, LatencyStats
+from backend.core.stt import STTResult
 from backend.db import Database
 
 
 class FakeSTT:
-    def __init__(self, text: str = "hello there"):
+    def __init__(self, text: str = "hello there", language: str = "en"):
         self.text = text
+        self.language = language
 
-    def transcribe(self, audio, sample_rate: int = 16000) -> str:
-        return self.text
+    def transcribe(self, audio, sample_rate: int = 16000) -> STTResult:
+        return STTResult(
+            text=self.text, language=self.language, language_probability=0.99
+        )
 
 
 class FakeTTS:
-    def synthesize(self, text: str) -> bytes:
+    """Mimics TTSRouter.synthesize(text, language) -> bytes."""
+
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, str]] = []
+
+    def synthesize(self, text: str, language: str = "en") -> bytes:
+        self.calls.append((text, language))
         # 10 ms of silence per sentence — enough to assert on
         return b"\x00\x00" * 240
 
@@ -82,10 +92,10 @@ def collector():
 
 @pytest.fixture
 def make_pipeline(db, collector):
-    def _make(llm=None, stt=None) -> ConversationPipeline:
+    def _make(llm=None, stt=None, tts=None) -> ConversationPipeline:
         return ConversationPipeline(
             stt=stt or FakeSTT(),
-            tts=FakeTTS(),
+            tts=tts or FakeTTS(),
             llm=llm or FakeLLM(),
             turn_detector=FakeTurnDetector(),
             db=db,

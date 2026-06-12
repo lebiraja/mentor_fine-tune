@@ -40,7 +40,7 @@ One connection = one live conversation. Binary frames are audio; text frames are
 |---|---|
 | `{"type":"session","session_id"}` | active session confirmed |
 | `{"type":"state","state"}` | `listening` / `transcribing` / `generating` / `speaking` |
-| `{"type":"user_transcript","text"}` | what STT heard |
+| `{"type":"user_transcript","text","language","language_probability"}` | what STT heard + detected language (`en`/`ta`/…) and its probability |
 | `{"type":"assistant_delta","text"}` | streaming token(s) |
 | `{"type":"assistant_done","text"}` | full reply text |
 | `{"type":"interrupted"}` | barge-in happened — flush your playback queue |

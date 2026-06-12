@@ -34,7 +34,8 @@ make clean         # down + remove volumes
 ## End-to-end voice check (no microphone needed)
 Speaks a synthesized question at the live stack and asserts on transcript, reply, and audio:
 ```bash
-docker compose exec -e PYTHONPATH=/app backend python tests/e2e_voice_client.py
+docker compose exec -e PYTHONPATH=/app backend python tests/e2e_voice_client.py   # English
+docker compose exec -e PYTHONPATH=/app backend python tests/e2e_tamil_client.py   # Tamil
 ```
 
 ## Troubleshooting

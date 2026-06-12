@@ -8,6 +8,23 @@ _ABBREVIATIONS = {"mr.", "mrs.", "ms.", "dr.", "st.", "e.g.", "i.e.", "vs.", "et
 MIN_CHUNK_CHARS = 12
 MAX_CHUNK_CHARS = 300
 
+# Markdown the LLM sometimes emits despite the prompt — TTS would read it literally.
+_EMPHASIS = re.compile(r"(\*{1,3}|_{1,3}|`+)(.+?)\1", re.DOTALL)
+_LEADING_MARKS = re.compile(r"^\s*(?:[-*+]|\d+\.|#{1,6})\s+", re.MULTILINE)
+_STRAY_MARKS = re.compile(r"[*_`#]")
+
+
+def clean_for_speech(text: str) -> str:
+    """Strip markdown so TTS doesn't pronounce asterisks, backticks, hashes, etc.
+
+    Unwraps *emph*/`code`, drops list bullets and heading marks, then removes any
+    stray markup characters left behind. Leaves normal punctuation untouched.
+    """
+    text = _EMPHASIS.sub(r"\2", text)
+    text = _LEADING_MARKS.sub("", text)
+    text = _STRAY_MARKS.sub("", text)
+    return re.sub(r"[ \t]{2,}", " ", text).strip()
+
 
 class SentenceSegmenter:
     """Feed deltas, get back complete sentences as soon as they exist."""

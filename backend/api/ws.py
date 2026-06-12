@@ -10,7 +10,7 @@ Protocol (server -> client):
   binary frames            24 kHz int16 mono PCM TTS audio
   {"type":"session","session_id": str}
   {"type":"state","state":"listening"|"transcribing"|"generating"|"speaking"}
-  {"type":"user_transcript","text": str}
+  {"type":"user_transcript","text": str, "language": str, "language_probability": float}
   {"type":"assistant_delta","text": str}
   {"type":"assistant_done","text": str}
   {"type":"interrupted"}

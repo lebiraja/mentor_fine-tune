@@ -8,7 +8,12 @@ export const serverEventSchema = z.discriminatedUnion('type', [
     type: z.literal('state'),
     state: z.enum(['listening', 'transcribing', 'generating', 'speaking']),
   }),
-  z.object({ type: z.literal('user_transcript'), text: z.string() }),
+  z.object({
+    type: z.literal('user_transcript'),
+    text: z.string(),
+    language: z.string().optional(),
+    language_probability: z.number().optional(),
+  }),
   z.object({ type: z.literal('assistant_delta'), text: z.string() }),
   z.object({ type: z.literal('assistant_done'), text: z.string() }),
   z.object({ type: z.literal('interrupted') }),
