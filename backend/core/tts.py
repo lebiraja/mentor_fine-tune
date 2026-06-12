@@ -74,9 +74,14 @@ class TTSRouter:
 
 def _resample(pcm: bytes, from_rate: int, to_rate: int) -> bytes:
     """Linear interpolation resample — good enough for speech, no heavy deps."""
+    if from_rate == to_rate:
+        return pcm
     samples = np.frombuffer(pcm, dtype=np.int16).astype(np.float32)
-    ratio = to_rate / from_rate
-    new_len = int(len(samples) * ratio)
-    indices = np.linspace(0, len(samples) - 1, new_len)
-    resampled = np.interp(indices, np.arange(len(samples)), samples)
+    if samples.size < 2:
+        return pcm  # np.interp needs ≥2 points; sub-sample audio is silence anyway
+    new_len = int(samples.size * to_rate / from_rate)
+    if new_len < 1:
+        return b""
+    indices = np.linspace(0, samples.size - 1, new_len)
+    resampled = np.interp(indices, np.arange(samples.size), samples)
     return resampled.astype(np.int16).tobytes()

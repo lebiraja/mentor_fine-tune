@@ -1,4 +1,4 @@
-"""ClarityMentor v2 backend — FastAPI app factory."""
+"""ClarityMentor v3 backend — FastAPI app factory (bilingual EN/TA)."""
 
 from contextlib import asynccontextmanager
 
@@ -66,7 +66,7 @@ async def lifespan(app: FastAPI):
     await app.state.db.close()
 
 
-app = FastAPI(title="ClarityMentor v2", version="2.0.0", lifespan=lifespan)
+app = FastAPI(title="ClarityMentor v3", version="3.0.0", lifespan=lifespan)
 app.include_router(rest.router, prefix="/api")
 app.include_router(ws.router)
 

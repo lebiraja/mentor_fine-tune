@@ -45,5 +45,30 @@ def test_max_chunk_safety_valve():
     assert all(len(s) <= MAX_CHUNK_CHARS + 1 for s in out)
 
 
+def test_clean_for_speech_strips_emphasis():
+    from backend.core.segmenter import clean_for_speech
+
+    assert clean_for_speech("That is *really* important.") == "That is really important."
+    assert clean_for_speech("Use `code` here") == "Use code here"
+    assert clean_for_speech("**Bold** and _italic_") == "Bold and italic"
+
+
+def test_clean_for_speech_strips_list_and_heading_marks():
+    from backend.core.segmenter import clean_for_speech
+
+    assert clean_for_speech("- first point") == "first point"
+    assert clean_for_speech("## Heading") == "Heading"
+    assert clean_for_speech("1. numbered") == "numbered"
+
+
+def test_clean_for_speech_leaves_plain_text():
+    from backend.core.segmenter import clean_for_speech
+
+    plain = "What you're describing isn't failure, it's a gap."
+    assert clean_for_speech(plain) == plain
+    # Tamil text untouched
+    assert clean_for_speech("வணக்கம், நண்பரே.") == "வணக்கம், நண்பரே."
+
+
 def test_flush_empty():
     assert SentenceSegmenter().flush() == []

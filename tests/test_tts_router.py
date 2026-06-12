@@ -77,3 +77,14 @@ def test_empty_text_returns_empty(router):
 
     pcm = router.synthesize("  ", language="ta")
     assert pcm == b""
+
+
+def test_resample_empty_and_tiny_input_no_crash():
+    assert _resample(b"", 22050, 24000) == b""
+    one = (np.int16(123)).tobytes()
+    assert _resample(one, 22050, 24000) == one  # <2 samples: returned as-is
+
+
+def test_resample_same_rate_is_noop():
+    pcm = (np.arange(100, dtype=np.int16)).tobytes()
+    assert _resample(pcm, 24000, 24000) == pcm

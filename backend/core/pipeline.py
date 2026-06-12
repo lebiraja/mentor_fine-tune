@@ -11,7 +11,7 @@ from typing import Any, Awaitable, Callable
 
 import numpy as np
 
-from backend.core.segmenter import SentenceSegmenter
+from backend.core.segmenter import SentenceSegmenter, clean_for_speech
 
 SendJSON = Callable[[dict[str, Any]], Awaitable[None]]
 SendBytes = Callable[[bytes], Awaitable[None]]
@@ -147,8 +147,11 @@ class ConversationPipeline:
 
             async def speak(sentence: str) -> None:
                 nonlocal speaking, t_first_audio
+                spoken = clean_for_speech(sentence)
+                if not spoken:
+                    return
                 pcm = await loop.run_in_executor(
-                    None, self.tts.synthesize, sentence, detected_lang
+                    None, self.tts.synthesize, spoken, detected_lang
                 )
                 if not pcm:
                     return
