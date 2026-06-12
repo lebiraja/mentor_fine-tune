@@ -50,7 +50,9 @@ States: `listening → transcribing → generating → speaking → listening`.
 
 **Markdown stripping:** the LLM occasionally emits `*emphasis*`/`` `code` ``/bullets despite the prompt. `clean_for_speech()` (`backend/core/segmenter.py`) removes them before TTS so they aren't read aloud. The on-screen streamed text is left as generated.
 
-**Barge-in:** VAD keeps running while the assistant speaks. New user speech cancels the in-flight LLM stream and TTS tasks, sends `interrupted`, and the client flushes its audio queue. Partial assistant text is persisted.
+**Echo guard (half-duplex, default):** on laptop speakers the bot's TTS leaks into the mic and would loop (it transcribes itself). So while the assistant is busy producing audio — and for a tail after the queued audio finishes *playing* in the browser — the pipeline ignores the mic and resets the turn detector. Set `ALLOW_BARGE_IN=true` (headphones) to disable this and get full-duplex barge-in instead.
+
+**Barge-in (opt-in):** with `ALLOW_BARGE_IN=true`, VAD keeps running while the assistant speaks; new user speech cancels the in-flight LLM stream and TTS tasks, sends `interrupted`, and the client flushes its audio queue. Partial assistant text is persisted.
 
 **Blocking inference** (STT/TTS) runs in thread executors; the event loop never blocks.
 
