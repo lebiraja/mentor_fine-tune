@@ -36,7 +36,7 @@ class ConversationPipeline:
         llm,
         turn_detector,
         db,
-        system_prompt: str,
+        personas,
         context_tokens: int,
         send_json: SendJSON,
         send_bytes: SendBytes,
@@ -47,24 +47,57 @@ class ConversationPipeline:
         self.llm = llm
         self.turns = turn_detector
         self.db = db
-        self.system_prompt = system_prompt
+        self.personas = personas
         self.context_tokens = context_tokens
         self.send_json = send_json
         self.send_bytes = send_bytes
         self.stats = stats
 
         self.session_id: str | None = None
+        self.persona = personas.get(None)  # default until set_session
+        self.system_prompt = self.persona.render_prompt()
         self.muted = False
         self._turn_task: asyncio.Task | None = None
 
     # ------------------------------------------------------------------ input
 
-    async def set_session(self, session_id: str | None) -> str:
-        if session_id and await self.db.session_exists(session_id):
+    async def set_session(self, session_id: str | None, persona_id: str | None = None) -> str:
+        """Resume or start a conversation under a chosen persona.
+
+        Resuming an existing session keeps its stored persona (locked per
+        conversation). A new session adopts `persona_id`. Friend-style personas
+        load their cross-session memory and open with a spoken greeting.
+        """
+        # Summarize the conversation we're leaving (memory personas only).
+        await self._cancel_turn()
+        await self._remember()
+
+        resuming = bool(session_id and await self.db.session_exists(session_id))
+        if resuming:
             self.session_id = session_id
+            stored = await self.db.get_session_persona(session_id)
+            self.persona = self.personas.get(stored)
         else:
-            self.session_id = await self.db.create_session()
+            self.persona = self.personas.get(persona_id)
+            self.session_id = await self.db.create_session(persona=self.persona.id)
+
+        await self._load_prompt()
+
+        # Proactive personas (Friend) greet on entering a fresh conversation.
+        is_empty = not await self.db.get_messages(self.session_id)
+        if self.persona.proactive and is_empty:
+            self._start_greeting()
+
         return self.session_id
+
+    async def _load_prompt(self) -> None:
+        """Build the system prompt, injecting cross-session memory if the persona uses it."""
+        memory = None
+        if self.persona.cross_session_memory:
+            summaries = await self.db.get_memories(self.persona.id)
+            if summaries:
+                memory = "\n".join(f"- {s}" for s in summaries)
+        self.system_prompt = self.persona.render_prompt(memory)
 
     async def handle_audio(self, pcm_bytes: bytes) -> None:
         """Continuous 16 kHz int16 mono frames from the client mic."""
@@ -88,11 +121,15 @@ class ConversationPipeline:
 
     async def shutdown(self) -> None:
         await self._cancel_turn()
+        await self._remember()
 
     # ------------------------------------------------------------------- turn
 
     def _start_turn(self, audio: np.ndarray | None = None, text: str | None = None) -> None:
         self._turn_task = asyncio.create_task(self._run_turn(audio, text))
+
+    def _start_greeting(self) -> None:
+        self._turn_task = asyncio.create_task(self._run_greeting())
 
     async def _barge_in(self) -> None:
         if self._turn_task and not self._turn_task.done():
@@ -112,6 +149,7 @@ class ConversationPipeline:
         assert self.session_id is not None
         loop = asyncio.get_running_loop()
         assistant_text = ""
+        partial: list[str] = []
         detected_lang = "en"
         try:
             # 1. Transcribe (voice turns only)
@@ -134,60 +172,140 @@ class ConversationPipeline:
 
             await self.db.add_message(self.session_id, "user", text)
 
-            # 2. Build windowed history
+            # 2. Build windowed history, then stream LLM -> segment -> TTS
             messages = await self._windowed_messages()
+            assistant_text = await self._stream_and_speak(messages, detected_lang, partial=partial)
 
-            # 3. Stream LLM -> segment -> TTS, all overlapped
-            await self.send_json({"type": "state", "state": "generating"})
-            segmenter = SentenceSegmenter()
-            t_first_token: float | None = None
-            t_first_audio: float | None = None
-            t0 = time.perf_counter()
-            speaking = False
-
-            async def speak(sentence: str) -> None:
-                nonlocal speaking, t_first_audio
-                spoken = clean_for_speech(sentence)
-                if not spoken:
-                    return
-                pcm = await loop.run_in_executor(
-                    None, self.tts.synthesize, spoken, detected_lang
-                )
-                if not pcm:
-                    return
-                if not speaking:
-                    speaking = True
-                    await self.send_json({"type": "state", "state": "speaking"})
-                if t_first_audio is None:
-                    t_first_audio = time.perf_counter()
-                    self.stats.record("first_audio_ms", (t_first_audio - t0) * 1000)
-                await self.send_bytes(pcm)
-
-            async for delta in self.llm.stream_chat(messages):
-                if t_first_token is None:
-                    t_first_token = time.perf_counter()
-                    self.stats.record("llm_ttft_ms", (t_first_token - t0) * 1000)
-                assistant_text += delta
-                await self.send_json({"type": "assistant_delta", "text": delta})
-                for sentence in segmenter.feed(delta):
-                    await speak(sentence)
-
-            for sentence in segmenter.flush():
-                await speak(sentence)
-
-            await self.send_json({"type": "assistant_done", "text": assistant_text})
             await self.db.add_message(self.session_id, "assistant", assistant_text)
             await self.send_json({"type": "state", "state": "listening"})
 
         except asyncio.CancelledError:
             # Barge-in or disconnect: persist whatever was said so far
-            if assistant_text:
-                await self.db.add_message(self.session_id, "assistant", assistant_text)
+            said = assistant_text or "".join(partial)
+            if said:
+                await self.db.add_message(self.session_id, "assistant", said)
             raise
         except Exception as e:
             await self.send_json({"type": "error", "message": "Something went wrong, try again."})
             print(f"[pipeline] turn failed: {type(e).__name__}: {e}")
             await self.send_json({"type": "state", "state": "listening"})
+
+    async def _run_greeting(self) -> None:
+        """Proactive opening for personas like Friend — speak first, no user turn."""
+        assert self.session_id is not None
+        greeting = ""
+        partial: list[str] = []
+        try:
+            await self.send_json({"type": "state", "state": "generating"})
+            messages = [
+                {"role": "system", "content": self.system_prompt},
+                {
+                    "role": "user",
+                    "content": "(The person just opened the app and is here now. "
+                    "Greet them the way you naturally would — warm, brief, and if you "
+                    "remember things about them, pick up the thread.)",
+                },
+            ]
+            greeting = await self._stream_and_speak(
+                messages, "en", event="assistant_greeting", partial=partial
+            )
+            if greeting:
+                await self.db.add_message(self.session_id, "assistant", greeting)
+            await self.send_json({"type": "state", "state": "listening"})
+        except asyncio.CancelledError:
+            said = greeting or "".join(partial)
+            if said:
+                await self.db.add_message(self.session_id, "assistant", said)
+            raise
+        except Exception as e:
+            print(f"[pipeline] greeting failed: {type(e).__name__}: {e}")
+            await self.send_json({"type": "state", "state": "listening"})
+
+    async def _stream_and_speak(
+        self,
+        messages: list[dict[str, str]],
+        language: str,
+        event: str = "assistant_delta",
+        partial: list[str] | None = None,
+    ) -> str:
+        """Stream LLM tokens to text events while synthesizing speech per sentence.
+
+        Shared by normal turns and proactive greetings. Returns the full text.
+        `partial` (if given) accumulates deltas so a cancelled caller can recover
+        whatever was said before barge-in.
+        """
+        loop = asyncio.get_running_loop()
+        await self.send_json({"type": "state", "state": "generating"})
+        segmenter = SentenceSegmenter()
+        assistant_text = ""
+        t0 = time.perf_counter()
+        t_first_token: float | None = None
+        t_first_audio: float | None = None
+        speaking = False
+
+        async def speak(sentence: str) -> None:
+            nonlocal speaking, t_first_audio
+            spoken = clean_for_speech(sentence)
+            if not spoken:
+                return
+            pcm = await loop.run_in_executor(None, self.tts.synthesize, spoken, language)
+            if not pcm:
+                return
+            if not speaking:
+                speaking = True
+                await self.send_json({"type": "state", "state": "speaking"})
+            if t_first_audio is None:
+                t_first_audio = time.perf_counter()
+                self.stats.record("first_audio_ms", (t_first_audio - t0) * 1000)
+            await self.send_bytes(pcm)
+
+        async for delta in self.llm.stream_chat(messages):
+            if t_first_token is None:
+                t_first_token = time.perf_counter()
+                self.stats.record("llm_ttft_ms", (t_first_token - t0) * 1000)
+            assistant_text += delta
+            if partial is not None:
+                partial.append(delta)
+            await self.send_json({"type": event, "text": delta})
+            for sentence in segmenter.feed(delta):
+                await speak(sentence)
+
+        for sentence in segmenter.flush():
+            await speak(sentence)
+
+        await self.send_json({"type": "assistant_done", "text": assistant_text})
+        return assistant_text
+
+    async def _remember(self) -> None:
+        """For memory personas: summarize this conversation and store it for next time."""
+        if not self.persona.cross_session_memory or self.session_id is None:
+            return
+        if await self.db.has_memory_for_session(self.session_id):
+            return  # already summarized (e.g. switched away earlier)
+
+        history = await self.db.get_messages(self.session_id)
+        if len(history) < 2:
+            return  # nothing meaningful happened
+
+        transcript = "\n".join(f"{m['role']}: {m['content']}" for m in history)
+        prompt = [
+            {
+                "role": "system",
+                "content": "You write a brief third-person memory note about a friend, "
+                "for your own future reference. 1-3 sentences. Capture what's going on in "
+                "their life, how they seemed, and anything to follow up on. No preamble.",
+            },
+            {"role": "user", "content": transcript},
+        ]
+        try:
+            summary = ""
+            async for delta in self.llm.stream_chat(prompt):
+                summary += delta
+            summary = summary.strip()
+            if summary:
+                await self.db.save_memory(self.persona.id, self.session_id, summary)
+        except Exception as e:
+            print(f"[pipeline] memory summary failed: {type(e).__name__}: {e}")
 
     async def _windowed_messages(self) -> list[dict[str, str]]:
         """System prompt + as many recent turns as fit the context budget.

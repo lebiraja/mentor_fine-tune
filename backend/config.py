@@ -63,9 +63,5 @@ class Settings(BaseSettings):
     def silero_model(self) -> Path:
         return self.MODELS_DIR / "silero" / "silero_vad.onnx"
 
-    @property
-    def system_prompt(self) -> str:
-        return (BASE_DIR / "config" / "system_prompt.txt").read_text().strip()
-
 
 settings = Settings()

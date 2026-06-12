@@ -20,12 +20,15 @@ interface Conversation {
   /** Assistant text currently streaming in (not yet in `lines`). */
   streaming: string;
   sessionId: string | null;
+  persona: string | null;
   error: string | null;
-  connect: () => void;
+  /** Connect and open a brand-new conversation under the given persona. */
+  start: (persona: string) => void;
   sendAudio: (pcm: ArrayBuffer) => void;
   sendText: (text: string) => void;
   setMuted: (muted: boolean) => void;
-  switchSession: (sessionId: string | null) => Promise<void>;
+  /** Open an existing saved conversation (keeps its persona) or null for fresh-default. */
+  switchSession: (sessionId: string | null, persona?: string) => Promise<void>;
 }
 
 interface ConversationCallbacks {
@@ -41,6 +44,7 @@ export function useConversation({ onAudio, onInterrupted }: ConversationCallback
   const [lines, setLines] = useState<ChatLine[]>([]);
   const [streaming, setStreaming] = useState('');
   const [sessionId, setSessionId] = useState<string | null>(null);
+  const [persona, setPersona] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const wsRef = useRef<WebSocket | null>(null);
@@ -48,6 +52,11 @@ export function useConversation({ onAudio, onInterrupted }: ConversationCallback
   const callbacksRef = useRef({ onAudio, onInterrupted });
   callbacksRef.current = { onAudio, onInterrupted };
   const streamingRef = useRef('');
+  // What to open once the socket is ready. {session_id, persona}.
+  const pendingRef = useRef<{ session_id: string | null; persona: string | null }>({
+    session_id: null,
+    persona: null,
+  });
 
   const loadHistory = useCallback(async (id: string) => {
     try {
@@ -72,8 +81,12 @@ export function useConversation({ onAudio, onInterrupted }: ConversationCallback
 
     ws.onopen = () => {
       setError(null);
-      const saved = localStorage.getItem(SESSION_KEY);
-      ws.send(JSON.stringify({ type: 'set_session', session_id: saved }));
+      const pending = pendingRef.current;
+      // Reconnect with no explicit intent → resume last saved session.
+      const session_id = pending.session_id ?? localStorage.getItem(SESSION_KEY);
+      ws.send(
+        JSON.stringify({ type: 'set_session', session_id, persona: pending.persona })
+      );
     };
 
     ws.onmessage = (event: MessageEvent) => {
@@ -88,6 +101,7 @@ export function useConversation({ onAudio, onInterrupted }: ConversationCallback
       switch (msg.type) {
         case 'session':
           setSessionId(msg.session_id);
+          if (msg.persona) setPersona(msg.persona);
           localStorage.setItem(SESSION_KEY, msg.session_id);
           void loadHistory(msg.session_id);
           break;
@@ -98,6 +112,7 @@ export function useConversation({ onAudio, onInterrupted }: ConversationCallback
           setLines((prev) => [...prev, { id: nextId(), role: 'user', content: msg.text }]);
           break;
         case 'assistant_delta':
+        case 'assistant_greeting':
           streamingRef.current += msg.text;
           setStreaming(streamingRef.current);
           break;
@@ -154,11 +169,30 @@ export function useConversation({ onAudio, onInterrupted }: ConversationCallback
     wsRef.current?.send(JSON.stringify({ type: 'mute', muted }));
   }, []);
 
-  const switchSession = useCallback(
-    async (id: string | null) => {
+  const start = useCallback(
+    (chosenPersona: string) => {
+      pendingRef.current = { session_id: null, persona: chosenPersona };
+      localStorage.removeItem(SESSION_KEY); // fresh conversation, don't resume
       streamingRef.current = '';
       setStreaming('');
       setLines([]);
+      const ws = wsRef.current;
+      if (ws?.readyState === WebSocket.OPEN) {
+        // Socket already open (e.g. picking a new persona mid-session): send now.
+        ws.send(JSON.stringify({ type: 'set_session', session_id: null, persona: chosenPersona }));
+      } else {
+        connect();
+      }
+    },
+    [connect]
+  );
+
+  const switchSession = useCallback(
+    async (id: string | null, chosenPersona?: string) => {
+      streamingRef.current = '';
+      setStreaming('');
+      setLines([]);
+      pendingRef.current = { session_id: id, persona: chosenPersona ?? null };
       if (id) {
         localStorage.setItem(SESSION_KEY, id);
       } else {
@@ -166,10 +200,14 @@ export function useConversation({ onAudio, onInterrupted }: ConversationCallback
       }
       const ws = wsRef.current;
       if (ws?.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: 'set_session', session_id: id }));
+        ws.send(
+          JSON.stringify({ type: 'set_session', session_id: id, persona: chosenPersona ?? null })
+        );
+      } else {
+        connect();
       }
     },
-    []
+    [connect]
   );
 
   return {
@@ -177,8 +215,9 @@ export function useConversation({ onAudio, onInterrupted }: ConversationCallback
     lines,
     streaming,
     sessionId,
+    persona,
     error,
-    connect,
+    start,
     sendAudio,
     sendText,
     setMuted,

@@ -2,6 +2,31 @@
 
 Running log of significant fixes and the reasoning behind them.
 
+## 2026-06-12 — personas (conversational modes)
+
+Added selectable personas so the app isn't only "Clarity". Five modes: Clarity,
+Engineer, General, Coach, Friend — each its own system prompt, chosen on the Begin
+screen and **locked per conversation**.
+
+- `config/personas/*.yaml` + `backend/core/personas.py` registry (pyyaml pinned).
+  Replaced the single `config/system_prompt.txt` / `settings.system_prompt`.
+- DB: `sessions.persona` column (with a migration for existing DBs) + a `memories`
+  table for Friend's rolling cross-session summaries.
+- Pipeline now holds a `Persona`, not a bare prompt string. `set_session(id, persona)`
+  resolves it; resuming a session keeps its stored persona.
+- **Friend** is proactive (greets first via a new `assistant_greeting` event) and has
+  cross-session memory: on conversation end the LLM writes a 1–3 sentence summary; the
+  next Friend session injects those into the prompt's `{memory}` slot. Prompt forbids
+  inventing history not in memory.
+- Refactored the LLM→segment→TTS streaming out of `_run_turn` into a shared
+  `_stream_and_speak()` used by both turns and greetings. **Caught a regression in
+  review:** the extraction broke barge-in partial-persist (the partial text lived in the
+  helper's local scope) — fixed by threading a `partial` accumulator the caller can recover.
+- Frontend: persona picker on the Begin screen, persona shown in header + session drawer,
+  `assistant_greeting` handled, protocol/Zod updated.
+- 36→48 unit tests (12 new persona tests), 6 smoke green. Verified live: all 5 personas
+  answer distinctly; Friend greets and a second Friend session recalls the first.
+
 ## 2026-06-12 — v3 Tamil review fixes
 
 Audit of the bilingual (Tamil+English) change. The pipeline worked end-to-end live

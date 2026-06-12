@@ -1,7 +1,9 @@
 import {
   messagesResponseSchema,
+  personasResponseSchema,
   sessionsResponseSchema,
   type Message,
+  type Persona,
   type Session,
 } from '@/types/protocol';
 
@@ -12,6 +14,10 @@ async function get(path: string): Promise<unknown> {
 }
 
 export const api = {
+  async listPersonas(): Promise<Persona[]> {
+    return personasResponseSchema.parse(await get('/personas')).personas;
+  },
+
   async listSessions(): Promise<Session[]> {
     return sessionsResponseSchema.parse(await get('/sessions')).sessions;
   },

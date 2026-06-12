@@ -60,6 +60,35 @@ class FakeTurnDetector:
         pass
 
 
+# A tiny in-memory persona registry so pipeline tests don't depend on config files.
+from backend.core.personas import Persona  # noqa: E402
+
+
+class FakePersonaRegistry:
+    def __init__(self, personas: dict[str, Persona] | None = None):
+        self._personas = personas or {
+            "clarity": Persona(
+                id="clarity", name="Clarity", tagline="mentor", voice="af_heart",
+                proactive=False, cross_session_memory=False,
+                system_prompt="You are a test mentor.",
+            ),
+            "friend": Persona(
+                id="friend", name="Friend", tagline="remembers you", voice="af_heart",
+                proactive=True, cross_session_memory=True,
+                system_prompt="You are a friend. What you remember:\n{memory}",
+            ),
+        }
+
+    def get(self, persona_id):
+        return self._personas.get(persona_id or "", self._personas["clarity"])
+
+    def exists(self, persona_id):
+        return persona_id in self._personas
+
+    def list(self):
+        return [{"id": p.id, "name": p.name, "tagline": p.tagline} for p in self._personas.values()]
+
+
 class Collector:
     """Captures everything the pipeline sends to the 'client'."""
 
@@ -91,15 +120,20 @@ def collector():
 
 
 @pytest.fixture
-def make_pipeline(db, collector):
-    def _make(llm=None, stt=None, tts=None) -> ConversationPipeline:
+def personas():
+    return FakePersonaRegistry()
+
+
+@pytest.fixture
+def make_pipeline(db, collector, personas):
+    def _make(llm=None, stt=None, tts=None, registry=None) -> ConversationPipeline:
         return ConversationPipeline(
             stt=stt or FakeSTT(),
             tts=tts or FakeTTS(),
             llm=llm or FakeLLM(),
             turn_detector=FakeTurnDetector(),
             db=db,
-            system_prompt="You are a test mentor.",
+            personas=registry or personas,
             context_tokens=8192,
             send_json=collector.send_json,
             send_bytes=collector.send_bytes,

@@ -18,6 +18,7 @@ kokoro-onnx==0.5.0
 piper-tts>=1.2.0
 
 numpy==2.4.6
+pyyaml==6.0.3
 
 # Tests (kept in image so `docker compose run --rm backend pytest` works)
 pytest==9.0.3
