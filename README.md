@@ -5,7 +5,7 @@ A fully local voice companion — talk out loud in **English or Tamil**, get a t
 - **Brain:** Qwen3-4B-Instruct-2507 (Q4 GGUF, llama.cpp, GPU)
 - **Ears:** faster-whisper large-v3-turbo (CTranslate2, GPU int8) — automatic language detection
 - **Voice (EN):** Kokoro-82M, `af_heart` (ONNX, CPU)
-- **Voice (TA):** Piper `ta_IN-female-medium` (ONNX, CPU)
+- **Voice (TA):** Piper `ta_IN-Valluvar-medium` (ONNX, CPU)
 - **Turn-taking:** Silero VAD with barge-in — interrupt it mid-sentence by speaking
 - **Personas:** pick who you talk to before you begin — **Clarity** (philosophical mentor), **Engineer** (technical sounding board), **General** (just talk), **Coach** (accountability), or **Friend** (remembers you across sessions and greets you first)
 

@@ -392,12 +392,13 @@ Phase 5 (ship):   Build → Test → Push Docker images → Update README → PR
 
 ## 19. Success Criteria
 
-- [ ] Speak English → get English voice response (quality identical to v2)
-- [ ] Speak Tamil → get Tamil voice response (intelligible, natural-ish)
-- [ ] Speak Tanglish → get response in dominant language (no crash, no gibberish)
-- [ ] End-to-end latency ≤ 2.5s (same or better than v2)
-- [ ] VRAM usage ≤ 5.5 GB peak (confirmed via `nvidia-smi`)
-- [ ] `make up` works on fresh clone with `make models` (no manual steps)
-- [ ] All existing tests pass
-- [ ] New Tamil smoke test passes
-- [ ] Docker images build and push to Hub
+- [x] Speak English → get English voice response (quality identical to v2)
+- [x] Speak Tamil → get Tamil voice response (intelligible, natural-ish)
+- [x] Speak Tanglish → get response in dominant language (no crash, no gibberish)
+- [x] End-to-end latency ≤ 2.5s (same or better than v2)
+- [x] VRAM usage ≤ 5.5 GB peak (confirmed via `nvidia-smi`)
+- [x] `make up` works on fresh clone with `make models` (no manual steps)
+- [x] All existing tests pass
+- [x] New Tamil smoke test passes
+- [x] Docker images build and push to Hub
+- [x] Update documentation

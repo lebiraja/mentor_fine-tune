@@ -25,7 +25,7 @@ Per WebSocket connection (`backend/core/pipeline.py`):
 
 ```
 client mic ──16kHz PCM frames──▶ TurnDetector (Silero VAD)
-                                   │ end-of-speech (0.6s silence)
+                                   │ end-of-speech (0.9s silence)
                                    ▼
                        faster-whisper STT (GPU)
                                    │ STTResult{text, language, probability}
