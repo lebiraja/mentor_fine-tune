@@ -2,6 +2,16 @@
 
 Running log of significant fixes and the reasoning behind them.
 
+## 2026-07-14 — Medusa Single-Persona & Local Time-Series Logging
+
+Consolidated conversational modes and added local time-series logging to satisfy simplicity and privacy requirements:
+
+1. **Local Time-Series Logging**: Configured standard Python logging to write to `/app/logs/medusa.log` using a `TimedRotatingFileHandler` configured to rotate daily at midnight (keeping up to 30 past log files). Mapped the logs directory to the host filesystem via a docker-compose volume mapping (`- ./logs:/app/logs`) to ensure logs are stored locally.
+2. **Single Persona Mode (Medusa)**: Consolidated all previous conversational personas (Clarity, Friend, Coach, Engineer, General) into a single unified persona: **Medusa**, the "friend to share all the things." Removed the old configuration files under `config/personas/` and replaced them with `config/personas/medusa.yaml`.
+3. **Database & Memory Alignment**: Configured SQLite to write to `medusa.db` and updated column defaults and query schemas to bind `'medusa'` as the default and only persona. Adapted cross-session memory triggers in the backend to run on `'medusa'`.
+4. **Frontend Redesign**: Redesigned the frontend welcoming interface to bypass the old multi-persona picker grid, directing the user straight to Medusa with a clean begin button. Updated local storage and protocols to use `medusa.session`.
+5. **Test Alignment**: Re-aligned unit and integration tests to verify Medusa's proactive greeting, cross-session memory summaries, and websocket messaging. All 81 tests pass successfully inside Docker.
+
 ## 2026-06-12 — self-listening loop + truncated input
 
 Two reported bugs, same root area (turn-taking on laptop speakers):

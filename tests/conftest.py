@@ -83,20 +83,15 @@ from backend.core.personas import Persona  # noqa: E402
 class FakePersonaRegistry:
     def __init__(self, personas: dict[str, Persona] | None = None):
         self._personas = personas or {
-            "clarity": Persona(
-                id="clarity", name="Clarity", tagline="mentor", voice="af_heart",
-                proactive=False, cross_session_memory=False,
-                system_prompt="You are a test mentor.",
-            ),
-            "friend": Persona(
-                id="friend", name="Friend", tagline="remembers you", voice="af_heart",
+            "medusa": Persona(
+                id="medusa", name="Medusa", tagline="the friend to share all the things", voice="af_heart",
                 proactive=True, cross_session_memory=True,
-                system_prompt="You are a friend. What you remember:\n{memory}",
+                system_prompt="You are Medusa, the friend to share all the things. What you remember:\n{memory}",
             ),
         }
 
     def get(self, persona_id):
-        return self._personas.get(persona_id or "", self._personas["clarity"])
+        return self._personas.get(persona_id or "", self._personas["medusa"])
 
     def exists(self, persona_id):
         return persona_id in self._personas

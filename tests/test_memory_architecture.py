@@ -45,7 +45,7 @@ async def test_hybrid_context_assembler_injects_semantic_memory(db):
     assembler = HybridContextAssembler(db, retriever, llm_max_tokens=400)
     messages = await assembler.assemble(
         session_id=session_id,
-        persona_id="clarity",
+        persona_id="medusa",
         system_prompt="You are a mentor.",
         query="Where do I work?",
         budget_tokens=8192,

@@ -12,7 +12,7 @@ _SCHEMA = """
 CREATE TABLE IF NOT EXISTS sessions (
     id TEXT PRIMARY KEY,
     title TEXT NOT NULL DEFAULT 'New conversation',
-    persona TEXT NOT NULL DEFAULT 'clarity',
+    persona TEXT NOT NULL DEFAULT 'medusa',
     created_at TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS messages (
@@ -98,7 +98,7 @@ class Database:
         columns = {row["name"] for row in await cur.fetchall()}
         if "persona" not in columns:
             await self._db.execute(
-                "ALTER TABLE sessions ADD COLUMN persona TEXT NOT NULL DEFAULT 'clarity'"
+                "ALTER TABLE sessions ADD COLUMN persona TEXT NOT NULL DEFAULT 'medusa'"
             )
 
         cur = await self._db.execute("PRAGMA table_info(conversation_events)")
@@ -168,7 +168,7 @@ class Database:
         assert self._db is not None, "Database not connected"
         return self._db
 
-    async def create_session(self, persona: str = "clarity") -> str:
+    async def create_session(self, persona: str = "medusa") -> str:
         session_id = str(uuid.uuid4())
         await self.db.execute(
             "INSERT INTO sessions (id, persona, created_at) VALUES (?, ?, ?)",

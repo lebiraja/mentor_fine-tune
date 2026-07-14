@@ -93,7 +93,7 @@ class HybridMemoryRetriever:
             metadata["graph"] = graph_context.metadata
             metadata["retrieval_mode"] = "hybrid-graph"
 
-        if persona_id == "friend":
+        if persona_id == "medusa":
             summaries = await self.store.get_memories(persona_id, limit=4)
             semantic_memories.extend(summaries)
 

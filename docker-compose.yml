@@ -45,6 +45,7 @@ services:
       - ./models/piper-tamil:/app/models/piper-tamil:ro
       - whisper-cache:/root/.cache/huggingface
       - clarity-data:/app/data
+      - ./logs:/app/logs
     ports:
       - "127.0.0.1:2324:2323"  # host 2323 is taken by bedrock-proxy
     deploy:

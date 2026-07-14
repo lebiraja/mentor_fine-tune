@@ -6,7 +6,7 @@ import {
   type Message,
 } from '@/types/protocol';
 
-const SESSION_KEY = 'clarity.session';
+const SESSION_KEY = 'medusa.session';
 
 export interface ChatLine {
   id: string;

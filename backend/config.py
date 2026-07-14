@@ -73,7 +73,8 @@ class Settings(BaseSettings):
     NEO4J_DATABASE: str = "neo4j"
     NEO4J_CONNECT_TIMEOUT_S: float = 5.0
 
-    DB_PATH: Path = BASE_DIR / "data" / "clarity.db"
+    DB_PATH: Path = BASE_DIR / "data" / "medusa.db"
+    LOGS_DIR: Path = BASE_DIR / "logs"
 
     @property
     def piper_tamil_model(self) -> Path:

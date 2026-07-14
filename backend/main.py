@@ -1,11 +1,45 @@
-"""ClarityMentor v3 backend — FastAPI app factory (bilingual EN/TA)."""
+"""Medusa backend — FastAPI app factory (bilingual EN/TA)."""
 
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
 from backend.api import rest, ws
+import logging
+import os
+from logging.handlers import TimedRotatingFileHandler
 from backend.config import settings
+
+def setup_logging() -> None:
+    os.makedirs(settings.LOGS_DIR, exist_ok=True)
+    log_file = settings.LOGS_DIR / "medusa.log"
+    
+    formatter = logging.Formatter(
+        "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+    )
+    
+    file_handler = TimedRotatingFileHandler(
+        log_file, when="midnight", interval=1, backupCount=30, encoding="utf-8"
+    )
+    file_handler.setFormatter(formatter)
+    file_handler.setLevel(logging.INFO)
+    
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(formatter)
+    console_handler.setLevel(logging.INFO)
+    
+    root_logger = logging.getLogger()
+    root_logger.setLevel(logging.INFO)
+    root_logger.handlers = []
+    root_logger.addHandler(file_handler)
+    root_logger.addHandler(console_handler)
+    
+    for logger_name in ("uvicorn", "uvicorn.error", "uvicorn.access"):
+        l = logging.getLogger(logger_name)
+        l.handlers = []
+        l.propagate = True
+
+setup_logging()
 from backend.core.llm import LLMClient
 from backend.core.personas import PersonaRegistry
 from backend.core.pipeline import LatencyStats
@@ -124,7 +158,7 @@ async def lifespan(app: FastAPI):
     await app.state.store.close()
 
 
-app = FastAPI(title="ClarityMentor v3", version="3.0.0", lifespan=lifespan)
+app = FastAPI(title="Medusa", version="3.0.0", lifespan=lifespan)
 app.include_router(rest.router, prefix="/api")
 app.include_router(ws.router)
 

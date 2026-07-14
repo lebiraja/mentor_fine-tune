@@ -61,7 +61,7 @@ export default function App() {
   const status = STATE_LABEL[conversation.state] ?? '';
   const personaName = conversation.persona
     ? conversation.persona.charAt(0).toUpperCase() + conversation.persona.slice(1)
-    : 'Clarity';
+    : 'Medusa';
 
   return (
     <main className="mx-auto flex h-full max-w-2xl flex-col px-5">
