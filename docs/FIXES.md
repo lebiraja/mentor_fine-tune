@@ -12,6 +12,16 @@ Consolidated conversational modes and added local time-series logging to satisfy
 4. **Frontend Redesign**: Redesigned the frontend welcoming interface to bypass the old multi-persona picker grid, directing the user straight to Medusa with a clean begin button. Updated local storage and protocols to use `medusa.session`.
 5. **Test Alignment**: Re-aligned unit and integration tests to verify Medusa's proactive greeting, cross-session memory summaries, and websocket messaging. All 81 tests pass successfully inside Docker.
 
+## 2026-07-14 — Medusa Personality Hardening (Casual & Human Touch)
+
+Refined the Medusa system prompt to make the assistant's responses feel significantly more human, natural, and casual:
+1. **Casual Conversational Styling**: Directs the persona to speak like a close friend in their early 20s, utilizing casual language, slang, contractions, and an informal tone.
+2. **Length & Structure Constraints**: Enforces brief responses (strictly 1 to 3 short sentences) and bans robotic lists, headings, and markdown formatting.
+3. **Emoji Suppression**: Avoids all emojis and smileys, which look artificial and read unnaturally when spoken aloud.
+4. **Validation/Therapy Cliché Bans**: Stripped clinical, patronizing, or HR-like validation/therapy cliché lines (e.g., "I'm here for you, you're not alone").
+5. **Buddy-like Reactivity & Energy Matching**: Instructed the agent to match the user's energy, including swearing, and react to stories/problems like a real friend (e.g., "Damn, that's fucked up") rather than a safe-corporate assistant.
+6. **Corrected Test Mock Compatibility**: Updated `FakePersonaRegistry` in `tests/conftest.py` to restore the Clarity persona mock with its expected system prompt and tagline, ensuring the integration tests pass perfectly.
+
 ## 2026-06-12 — self-listening loop + truncated input
 
 Two reported bugs, same root area (turn-taking on laptop speakers):
