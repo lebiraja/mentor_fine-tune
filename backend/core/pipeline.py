@@ -110,11 +110,18 @@ class ConversationPipeline:
     async def _emit_state(self, state: str) -> None:
         await self.send_json({"type": "state", "state": state})
         if self.session_id is not None:
-            await self.db.record_event(
-                self.session_id,
-                "state_transition",
-                metadata={"state": state},
-            )
+            try:
+                await self.db.record_event(
+                    self.session_id,
+                    "state_transition",
+                    metadata={"state": state},
+                )
+            except Exception:
+                logger.debug(
+                    "dropping state transition %s during shutdown or storage failure",
+                    state,
+                    exc_info=True,
+                )
 
     async def _record_event(
         self,
@@ -137,6 +144,28 @@ class ConversationPipeline:
         except Exception:
             logger.debug("dropping event %s during shutdown or storage failure", event_type, exc_info=True)
             return None
+
+    async def _store_message(
+        self,
+        role: str,
+        content: str,
+        metadata: dict[str, Any] | None = None,
+    ) -> None:
+        if self.session_id is None:
+            return
+        try:
+            await self.db.add_message(
+                self.session_id,
+                role,
+                content,
+                metadata=metadata,
+            )
+        except Exception:
+            logger.debug(
+                "dropping %s message during shutdown or storage failure",
+                role,
+                exc_info=True,
+            )
 
     # ------------------------------------------------------------------ input
 
@@ -350,8 +379,7 @@ class ConversationPipeline:
                     metadata={"language": detected_lang},
                 )
 
-            await self.db.add_message(
-                self.session_id,
+            await self._store_message(
                 "user",
                 text,
                 metadata={
@@ -365,8 +393,7 @@ class ConversationPipeline:
             messages = await self._windowed_messages(query=text)
             assistant_text = await self._stream_and_speak(messages, detected_lang, partial=partial)
 
-            await self.db.add_message(
-                self.session_id,
+            await self._store_message(
                 "assistant",
                 assistant_text,
                 metadata={"language": detected_lang},
@@ -387,7 +414,7 @@ class ConversationPipeline:
             # Barge-in or disconnect: persist whatever was said so far
             said = assistant_text or "".join(partial)
             if said:
-                await self.db.add_message(self.session_id, "assistant", said)
+                await self._store_message("assistant", said)
             raise
         except Exception as e:
             await self.send_json({"type": "error", "message": "Something went wrong, try again."})
@@ -417,8 +444,7 @@ class ConversationPipeline:
                 messages, "en", event="assistant_greeting", partial=partial
             )
             if greeting:
-                await self.db.add_message(
-                    self.session_id,
+                await self._store_message(
                     "assistant",
                     greeting,
                     metadata={"message_type": "greeting", "language": "en"},
@@ -433,7 +459,7 @@ class ConversationPipeline:
         except asyncio.CancelledError:
             said = greeting or "".join(partial)
             if said:
-                await self.db.add_message(self.session_id, "assistant", said)
+                await self._store_message("assistant", said)
             raise
         except Exception as e:
             print(f"[pipeline] greeting failed: {type(e).__name__}: {e}")
