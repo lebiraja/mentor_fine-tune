@@ -6,12 +6,30 @@ GENERATING/SPEAKING cancels the in-flight turn (barge-in).
 """
 
 import asyncio
+import logging
 import time
 from typing import Any, Awaitable, Callable
 
 import numpy as np
 
+from backend.config import settings
+from backend.memory.context_assembler import HistoryContextAssembler
+from backend.memory.interfaces import (
+    ContextAssembler,
+    ConversationMemoryStore,
+    MemoryConsolidator,
+    MemoryExtractor,
+)
+from backend.core.emotion import (
+    EMPTY_EMOTION,
+    EmotionBuffer,
+    EmotionFusion,
+    EmotionState,
+    SpeechEmotionRecognizer,
+)
 from backend.core.segmenter import SentenceSegmenter, clean_for_speech
+
+logger = logging.getLogger(__name__)
 
 SendJSON = Callable[[dict[str, Any]], Awaitable[None]]
 SendBytes = Callable[[bytes], Awaitable[None]]
@@ -35,12 +53,20 @@ class ConversationPipeline:
         tts,
         llm,
         turn_detector,
-        db,
+        db: ConversationMemoryStore,
         personas,
         context_tokens: int,
         send_json: SendJSON,
         send_bytes: SendBytes,
         stats: LatencyStats,
+        ser: SpeechEmotionRecognizer | None = None,
+        fer_buffer: EmotionBuffer | None = None,
+        emotion_fusion: EmotionFusion | None = None,
+        ser_min_audio_s: float = 1.0,
+        ser_confidence_threshold: float = 0.3,
+        context_assembler: ContextAssembler | None = None,
+        memory_extractor: MemoryExtractor | None = None,
+        memory_consolidator: MemoryConsolidator | None = None,
     ):
         self.stt = stt
         self.tts = tts
@@ -52,6 +78,19 @@ class ConversationPipeline:
         self.send_json = send_json
         self.send_bytes = send_bytes
         self.stats = stats
+
+        # Emotion detection (all optional — graceful degradation)
+        self.ser = ser
+        self.fer_buffer = fer_buffer
+        self.emotion_fusion = emotion_fusion or EmotionFusion()
+        self.ser_min_audio_s = ser_min_audio_s
+        self.ser_confidence_threshold = ser_confidence_threshold
+        self._current_emotion: EmotionState = EMPTY_EMOTION
+        self.context_assembler = context_assembler or HistoryContextAssembler(
+            db, llm.max_tokens
+        )
+        self.memory_extractor = memory_extractor
+        self.memory_consolidator = memory_consolidator
 
         self.session_id: str | None = None
         self.persona = personas.get(None)  # default until set_session
@@ -68,6 +107,37 @@ class ConversationPipeline:
         self._plays_until = 0.0  # monotonic estimate of when queued audio finishes
         self.echo_tail_s = 0.8
 
+    async def _emit_state(self, state: str) -> None:
+        await self.send_json({"type": "state", "state": state})
+        if self.session_id is not None:
+            await self.db.record_event(
+                self.session_id,
+                "state_transition",
+                metadata={"state": state},
+            )
+
+    async def _record_event(
+        self,
+        event_type: str,
+        *,
+        role: str | None = None,
+        content: str | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> int | None:
+        if self.session_id is None:
+            return None
+        try:
+            return await self.db.record_event(
+                self.session_id,
+                event_type,
+                role=role,
+                content=content,
+                metadata=metadata,
+            )
+        except Exception:
+            logger.debug("dropping event %s during shutdown or storage failure", event_type, exc_info=True)
+            return None
+
     # ------------------------------------------------------------------ input
 
     async def set_session(self, session_id: str | None, persona_id: str | None = None) -> str:
@@ -80,15 +150,35 @@ class ConversationPipeline:
         # Summarize the conversation we're leaving (memory personas only).
         await self._cancel_turn()
         await self._remember()
+        if (
+            settings.MEMORY_ENABLED
+            and settings.MEMORY_CONSOLIDATE_ON_SWITCH
+            and self.memory_consolidator is not None
+            and self.session_id is not None
+        ):
+            await self.memory_consolidator.consolidate_session(self.session_id)
 
         resuming = bool(session_id and await self.db.session_exists(session_id))
         if resuming:
             self.session_id = session_id
             stored = await self.db.get_session_persona(session_id)
             self.persona = self.personas.get(stored)
+            await self._record_event(
+                "session_resumed",
+                metadata={"persona_id": self.persona.id},
+            )
         else:
             self.persona = self.personas.get(persona_id)
             self.session_id = await self.db.create_session(persona=self.persona.id)
+            await self._record_event(
+                "session_created",
+                metadata={"persona_id": self.persona.id},
+            )
+
+        await self._record_event(
+            "persona_selected",
+            metadata={"persona_id": self.persona.id},
+        )
 
         await self._load_prompt()
 
@@ -125,7 +215,8 @@ class ConversationPipeline:
             if event.kind == "speech_start":
                 if self.allow_barge_in:
                     await self._barge_in()
-                await self.send_json({"type": "state", "state": "listening"})
+                await self._record_event("speech_start_detected")
+                await self._emit_state("listening")
             elif event.kind == "utterance":
                 self._start_turn(audio=event.audio)
 
@@ -140,6 +231,9 @@ class ConversationPipeline:
     async def shutdown(self) -> None:
         await self._cancel_turn()
         await self._remember()
+        if self.memory_consolidator is not None and self.session_id is not None:
+            await self.memory_consolidator.consolidate_session(self.session_id)
+        await self._record_event("session_closed")
 
     # ------------------------------------------------------------------- turn
 
@@ -165,6 +259,7 @@ class ConversationPipeline:
         if self._turn_task and not self._turn_task.done():
             await self._cancel_turn()
             await self.send_json({"type": "interrupted"})
+            await self._record_event("interrupted")
 
     async def _cancel_turn(self) -> None:
         if self._turn_task and not self._turn_task.done():
@@ -182,16 +277,32 @@ class ConversationPipeline:
         partial: list[str] = []
         detected_lang = "en"
         try:
-            # 1. Transcribe (voice turns only)
+            await self._record_event(
+                "turn_started",
+                metadata={"mode": "text" if text is not None else "voice"},
+            )
+            # 1. Transcribe (voice turns only) — SER runs in parallel when available
             if text is None:
-                await self.send_json({"type": "state", "state": "transcribing"})
+                await self._emit_state("transcribing")
                 t0 = time.perf_counter()
-                stt_result = await loop.run_in_executor(None, self.stt.transcribe, audio)
+
+                stt_coro = loop.run_in_executor(None, self.stt.transcribe, audio)
+
+                # Fork SER in parallel if audio is long enough
+                ser_result: EmotionState = EMPTY_EMOTION
+                audio_duration_s = audio.size / 16000 if audio is not None else 0
+                if self.ser and audio is not None and audio_duration_s >= self.ser_min_audio_s:
+                    ser_coro = loop.run_in_executor(None, self.ser.predict, audio)
+                    stt_result, ser_result = await asyncio.gather(stt_coro, ser_coro)
+                    self.stats.record("ser_ms", (time.perf_counter() - t0) * 1000)
+                else:
+                    stt_result = await stt_coro
+
                 self.stats.record("stt_ms", (time.perf_counter() - t0) * 1000)
                 text = stt_result.text
                 detected_lang = stt_result.language
                 if not text:
-                    await self.send_json({"type": "state", "state": "listening"})
+                    await self._emit_state("listening")
                     return
                 await self.send_json({
                     "type": "user_transcript",
@@ -200,14 +311,77 @@ class ConversationPipeline:
                     "language_probability": stt_result.language_probability,
                 })
 
-            await self.db.add_message(self.session_id, "user", text)
+                # Fuse FER (from buffer) + SER
+                fer_snapshot = self.fer_buffer.snapshot() if self.fer_buffer else None
+                self._current_emotion = self.emotion_fusion.fuse(fer_snapshot, ser_result)
+                user_event_id = await self._record_event(
+                    "user_transcript",
+                    role="user",
+                    content=text,
+                    metadata={
+                        "language": detected_lang,
+                        "language_probability": stt_result.language_probability,
+                        "emotion_label": self._current_emotion.label,
+                        "emotion_confidence": self._current_emotion.confidence,
+                    },
+                )
+
+                if self._current_emotion.label != "neutral" and self._current_emotion.confidence >= self.ser_confidence_threshold:
+                    await self.send_json({
+                        "type": "emotion",
+                        "label": self._current_emotion.label,
+                        "confidence": round(self._current_emotion.confidence, 2),
+                        "source": self._current_emotion.source,
+                    })
+                    await self._record_event(
+                        "emotion_detected",
+                        metadata={
+                            "emotion_label": self._current_emotion.label,
+                            "emotion_confidence": self._current_emotion.confidence,
+                            "source": self._current_emotion.source,
+                        },
+                    )
+            else:
+                self._current_emotion = EMPTY_EMOTION
+                user_event_id = await self._record_event(
+                    "user_transcript",
+                    role="user",
+                    content=text,
+                    metadata={"language": detected_lang},
+                )
+
+            await self.db.add_message(
+                self.session_id,
+                "user",
+                text,
+                metadata={
+                    "language": detected_lang,
+                    "emotion_label": self._current_emotion.label,
+                    "emotion_confidence": self._current_emotion.confidence,
+                },
+            )
 
             # 2. Build windowed history, then stream LLM -> segment -> TTS
-            messages = await self._windowed_messages()
+            messages = await self._windowed_messages(query=text)
             assistant_text = await self._stream_and_speak(messages, detected_lang, partial=partial)
 
-            await self.db.add_message(self.session_id, "assistant", assistant_text)
-            await self.send_json({"type": "state", "state": "listening"})
+            await self.db.add_message(
+                self.session_id,
+                "assistant",
+                assistant_text,
+                metadata={"language": detected_lang},
+            )
+            if self.memory_extractor is not None:
+                await self.memory_extractor.extract_from_turn(
+                    session_id=self.session_id,
+                    user_text=text,
+                    assistant_text=assistant_text,
+                    metadata={
+                        "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                        "user_event_id": user_event_id,
+                    },
+                )
+            await self._emit_state("listening")
 
         except asyncio.CancelledError:
             # Barge-in or disconnect: persist whatever was said so far
@@ -218,7 +392,8 @@ class ConversationPipeline:
         except Exception as e:
             await self.send_json({"type": "error", "message": "Something went wrong, try again."})
             print(f"[pipeline] turn failed: {type(e).__name__}: {e}")
-            await self.send_json({"type": "state", "state": "listening"})
+            await self._record_event("error", metadata={"kind": type(e).__name__})
+            await self._emit_state("listening")
         finally:
             self._end_busy()
 
@@ -228,7 +403,7 @@ class ConversationPipeline:
         greeting = ""
         partial: list[str] = []
         try:
-            await self.send_json({"type": "state", "state": "generating"})
+            await self._record_event("turn_started", metadata={"mode": "greeting"})
             messages = [
                 {"role": "system", "content": self.system_prompt},
                 {
@@ -242,8 +417,19 @@ class ConversationPipeline:
                 messages, "en", event="assistant_greeting", partial=partial
             )
             if greeting:
-                await self.db.add_message(self.session_id, "assistant", greeting)
-            await self.send_json({"type": "state", "state": "listening"})
+                await self.db.add_message(
+                    self.session_id,
+                    "assistant",
+                    greeting,
+                    metadata={"message_type": "greeting", "language": "en"},
+                )
+                await self._record_event(
+                    "assistant_greeting",
+                    role="assistant",
+                    content=greeting,
+                    metadata={"language": "en"},
+                )
+            await self._emit_state("listening")
         except asyncio.CancelledError:
             said = greeting or "".join(partial)
             if said:
@@ -251,7 +437,8 @@ class ConversationPipeline:
             raise
         except Exception as e:
             print(f"[pipeline] greeting failed: {type(e).__name__}: {e}")
-            await self.send_json({"type": "state", "state": "listening"})
+            await self._record_event("error", metadata={"kind": type(e).__name__})
+            await self._emit_state("listening")
         finally:
             self._end_busy()
 
@@ -269,7 +456,7 @@ class ConversationPipeline:
         whatever was said before barge-in.
         """
         loop = asyncio.get_running_loop()
-        await self.send_json({"type": "state", "state": "generating"})
+        await self._emit_state("generating")
         segmenter = SentenceSegmenter()
         assistant_text = ""
         t0 = time.perf_counter()
@@ -287,7 +474,7 @@ class ConversationPipeline:
                 return
             if not speaking:
                 speaking = True
-                await self.send_json({"type": "state", "state": "speaking"})
+                await self._emit_state("speaking")
             if t_first_audio is None:
                 t_first_audio = time.perf_counter()
                 self.stats.record("first_audio_ms", (t_first_audio - t0) * 1000)
@@ -307,6 +494,7 @@ class ConversationPipeline:
             if partial is not None:
                 partial.append(delta)
             await self.send_json({"type": event, "text": delta})
+            await self._record_event(event, role="assistant", content=delta)
             for sentence in segmenter.feed(delta):
                 await speak(sentence)
 
@@ -314,6 +502,7 @@ class ConversationPipeline:
             await speak(sentence)
 
         await self.send_json({"type": "assistant_done", "text": assistant_text})
+        await self._record_event("assistant_done", role="assistant", content=assistant_text)
         return assistant_text
 
     async def _remember(self) -> None:
@@ -344,26 +533,21 @@ class ConversationPipeline:
             summary = summary.strip()
             if summary:
                 await self.db.save_memory(self.persona.id, self.session_id, summary)
+                await self._record_event(
+                    "memory_summary_saved",
+                    metadata={"persona_id": self.persona.id},
+                )
         except Exception as e:
             print(f"[pipeline] memory summary failed: {type(e).__name__}: {e}")
 
-    async def _windowed_messages(self) -> list[dict[str, str]]:
-        """System prompt + as many recent turns as fit the context budget.
-
-        Uses a ~4 chars/token heuristic; llama.cpp enforces the hard limit.
-        """
-        budget_chars = (self.context_tokens - self.llm.max_tokens) * 4
-        budget_chars -= len(self.system_prompt)
-
-        history = await self.db.get_messages(self.session_id)
-        kept: list[dict[str, str]] = []
-        used = 0
-        for msg in reversed(history):
-            cost = len(msg["content"])
-            if used + cost > budget_chars and kept:
-                break
-            kept.append({"role": msg["role"], "content": msg["content"]})
-            used += cost
-        kept.reverse()
-
-        return [{"role": "system", "content": self.system_prompt}, *kept]
+    async def _windowed_messages(self, query: str | None = None) -> list[dict[str, str]]:
+        """Assemble current-generation prompt context through an explicit seam."""
+        return await self.context_assembler.assemble(
+            session_id=self.session_id,
+            persona_id=self.persona.id,
+            system_prompt=self.system_prompt,
+            query=query,
+            budget_tokens=self.context_tokens,
+            emotion_state=self._current_emotion,
+            emotion_confidence_threshold=self.ser_confidence_threshold,
+        )
