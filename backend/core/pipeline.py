@@ -27,7 +27,7 @@ from backend.core.emotion import (
     EmotionState,
     SpeechEmotionRecognizer,
 )
-from backend.core.segmenter import SentenceSegmenter, clean_for_speech
+from backend.core.segmenter import SentenceSegmenter, clean_for_speech, strip_emojis_and_emoticons
 
 logger = logging.getLogger(__name__)
 
@@ -95,6 +95,7 @@ class ConversationPipeline:
         self.session_id: str | None = None
         self.persona = personas.get(None)  # default until set_session
         self.system_prompt = self.persona.render_prompt()
+        self.has_memories = False
         self.muted = False
         self._turn_task: asyncio.Task | None = None
 
@@ -223,8 +224,11 @@ class ConversationPipeline:
         memory = None
         if self.persona.cross_session_memory:
             summaries = await self.db.get_memories(self.persona.id)
+            self.has_memories = bool(summaries)
             if summaries:
                 memory = "\n".join(f"- {s}" for s in summaries)
+        else:
+            self.has_memories = False
         self.system_prompt = self.persona.render_prompt(memory)
 
     async def handle_audio(self, pcm_bytes: bytes) -> None:
@@ -392,6 +396,7 @@ class ConversationPipeline:
             # 2. Build windowed history, then stream LLM -> segment -> TTS
             messages = await self._windowed_messages(query=text)
             assistant_text = await self._stream_and_speak(messages, detected_lang, partial=partial)
+            assistant_text = strip_emojis_and_emoticons(assistant_text)
 
             await self._store_message(
                 "assistant",
@@ -413,6 +418,7 @@ class ConversationPipeline:
         except asyncio.CancelledError:
             # Barge-in or disconnect: persist whatever was said so far
             said = assistant_text or "".join(partial)
+            said = strip_emojis_and_emoticons(said)
             if said:
                 await self._store_message("assistant", said)
             raise
@@ -430,19 +436,25 @@ class ConversationPipeline:
         greeting = ""
         partial: list[str] = []
         try:
-            await self._record_event("turn_started", metadata={"mode": "greeting"})
+            if self.has_memories:
+                user_msg = (
+                    "(The person just opened the app. In exactly 1 sentence, ask them how "
+                    "they are doing regarding what you remember about them.)"
+                )
+            else:
+                user_msg = (
+                    "(The person just opened the app. Greet them casually, like 'Hey, how's it going?' "
+                    "or 'Hey, good to see you,' in exactly 1 sentence. Do NOT mention any fake shared past, "
+                    "coffee shops, or bakeries.)"
+                )
             messages = [
                 {"role": "system", "content": self.system_prompt},
-                {
-                    "role": "user",
-                    "content": "(The person just opened the app and is here now. "
-                    "Greet them the way you naturally would — warm, brief, and if you "
-                    "remember things about them, pick up the thread.)",
-                },
+                {"role": "user", "content": user_msg},
             ]
             greeting = await self._stream_and_speak(
                 messages, "en", event="assistant_greeting", partial=partial
             )
+            greeting = strip_emojis_and_emoticons(greeting)
             if greeting:
                 await self._store_message(
                     "assistant",
@@ -458,6 +470,7 @@ class ConversationPipeline:
             await self._emit_state("listening")
         except asyncio.CancelledError:
             said = greeting or "".join(partial)
+            said = strip_emojis_and_emoticons(said)
             if said:
                 await self._store_message("assistant", said)
             raise
@@ -527,6 +540,7 @@ class ConversationPipeline:
         for sentence in segmenter.flush():
             await speak(sentence)
 
+        assistant_text = strip_emojis_and_emoticons(assistant_text)
         await self.send_json({"type": "assistant_done", "text": assistant_text})
         await self._record_event("assistant_done", role="assistant", content=assistant_text)
         return assistant_text

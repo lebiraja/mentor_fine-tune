@@ -27,6 +27,7 @@ pyyaml==6.0.3
 torch==2.5.1
 transformers==4.47.1
 hsemotion-onnx==0.3.1
+opencv-python-headless==5.0.0.93
 Pillow==11.3.0
 
 # Tests (kept in image so `docker compose run --rm backend pytest` works)

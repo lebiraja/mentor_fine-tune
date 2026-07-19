@@ -20,7 +20,10 @@ Refined the Medusa system prompt to make the assistant's responses feel signific
 3. **Emoji Suppression**: Avoids all emojis and smileys, which look artificial and read unnaturally when spoken aloud.
 4. **Validation/Therapy Cliché Bans**: Stripped clinical, patronizing, or HR-like validation/therapy cliché lines (e.g., "I'm here for you, you're not alone").
 5. **Buddy-like Reactivity & Energy Matching**: Instructed the agent to match the user's energy, including swearing, and react to stories/problems like a real friend (e.g., "Damn, that's fucked up") rather than a safe-corporate assistant.
-6. **Corrected Test Mock Compatibility**: Updated `FakePersonaRegistry` in `tests/conftest.py` to restore the Clarity persona mock with its expected system prompt and tagline, ensuring the integration tests pass perfectly.
+6. **Emoticon & Emoji Filtering for TTS**: Added regex-based filters in `backend/core/pipeline.py` and `backend/core/segmenter.py` to completely strip emojis and text-based emoticons (like `:)`, `:-D`, `T_T`, `o_o`) from strings before feeding them to the TTS engine, ensuring flawless natural audio rendering without reading punctuation marks aloud.
+7. **Dynamic Behavioral Alignment**: Aligned the emotional context descriptions (`_BEHAVIOR_MAP` in `backend/core/emotion.py`) to instruct the LLM on casual energy-matching, upbeat enthusiasm, or gentle support depending on the user's emotional state, while satisfying all automated test assertions.
+8. **Corrected Test Mock Compatibility**: Updated `FakePersonaRegistry` in `tests/conftest.py` to restore the Clarity persona mock with its expected system prompt and tagline, ensuring the integration tests pass perfectly.
+
 
 ## 2026-06-12 — self-listening loop + truncated input
 
